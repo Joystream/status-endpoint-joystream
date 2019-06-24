@@ -26,10 +26,13 @@ async function main () {
   await types_1.registerJoystreamTypes();
   await api_1.ApiPromise.create(provider);
 
+  while (true) {
+    try {
+      STATUS = await getStatusUpdate()
+    } catch (err) { console.error(err.message) }
 
-    STATUS = await getStatusUpdate()
     await sleepSeconds(6)
-  
+  }
 }
 
 main()
