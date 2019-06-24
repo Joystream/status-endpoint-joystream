@@ -20,6 +20,9 @@ async function getStatusUpdate () {
    
    
    // Retrieve the chain & node information information via rpc calls
+   
+   
+   
    const [chain, nodeName, nodeVersion, peers] = await Promise.all([
        api.rpc.system.chain(),
        api.rpc.system.name(),
@@ -31,7 +34,6 @@ async function getStatusUpdate () {
       'chain': chain,
       'name': nodeName,
       'version': nodeVersion,
-      //'peerCount': peerCount.length
       'peerCount': peers.length
     }
 
@@ -41,17 +43,12 @@ async function getStatusUpdate () {
     update.block_height = (finalizedBlockNumber.blockNumber)
 
     // Retrieve runtime data
-    const [spec, impl, specVer] = await Promise.all([
-      api.rpc.chain.getRuntimeVersion(`${finalizedHash}`),
-      api.rpc.chain.getRuntimeVersion(`${finalizedHash}`),
-      api.rpc.chain.getRuntimeVersion(`${finalizedHash}`)
-   ]);
-
-   update.runtime_version = {
-    'spec_name': spec.specName,
-    'impl_name': impl.implName,
-    'spec_version': specVer.specVersion
-  }
+    const runtimeVersion = await api.rpc.chain.getRuntimeVersion(`${finalizedHash}`);
+    update.runtime_version = {
+        'spec_name': runtimeVersion.specName,
+        'impl_name': runtimeVersion.implName,
+        'spec_version': runtimeVersion.specVersion
+    }
   
   // Retrieve council and election data
   const [councilMembers, electionStage] = await Promise.all([
