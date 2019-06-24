@@ -11,7 +11,8 @@ async function getStatusUpdate () {
 
    // Initialise the provider to connect to the local node
    //const provider = new api_1.WsProvider('wss://staging-reckless.joystream.org/reckless/rpc/');
-   const provider = new api_1.WsProvider('ws://127.0.0.1:9944');
+   const provider = new api_1.WsProvider('wss://staging-lts.joystream.org/staging/rpc/');
+   //const provider = new api_1.WsProvider('ws://127.0.0.1:9944');
    // register types before creating the api
    types_1.registerJoystreamTypes();
    // Create the API and wait until ready
@@ -117,6 +118,17 @@ api.query.dataDirectory.knownContentIds(),
 update.media = {
   'media_files': contentDirectory.length
 }
+
+// Retrieve forum data
+const [posts, threads] = await Promise.all([
+  api.query.forum.nextPostId(),
+  api.query.forum.nextThreadId()
+]);
+update.forum = {
+  'posts': posts - 1,
+  'threads': threads - 1
+}
+
 
 return update
 }
