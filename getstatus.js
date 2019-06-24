@@ -11,8 +11,8 @@ async function getStatusUpdate () {
 
    // Initialise the provider to connect to the local node
    //const provider = new api_1.WsProvider('wss://staging-reckless.joystream.org/reckless/rpc/');
-   const provider = new api_1.WsProvider('wss://staging-lts.joystream.org/staging/rpc/');
-   //const provider = new api_1.WsProvider('ws://127.0.0.1:9944');
+   //const provider = new api_1.WsProvider('wss://staging-lts.joystream.org/staging/rpc/');
+   const provider = new api_1.WsProvider('ws://127.0.0.1:9944');
    // register types before creating the api
    types_1.registerJoystreamTypes();
    // Create the API and wait until ready
@@ -58,25 +58,9 @@ async function getStatusUpdate () {
     api.query.council.activeCouncil(),
     api.query.councilElection.stage()
   ]);
-  var stage = (`${electionStage}`);
-  var current_stage = "";
-
-  if (stage=='undefined' || stage == null || stage == "") {
-    update.council = {
-      'members_count': councilMembers.length,
-      'election_stage': "Not Running"
-    }
-  } else {
-    JSON.parse(stage, (key, value) => {
-      if (key.length != 0 ) {
-        current_stage = key
-      }
-      //return current
-      update.council = {
-        'members_count': councilMembers.length,
-        'election_stage': current_stage
-      }
-    });
+  update.council = {
+    'members_count': councilMembers.length,
+    'election_stage': electionStage.isSome ? electionStage.unwrap().type : "Not Running"
   }
     
 
@@ -128,7 +112,6 @@ update.forum = {
   'posts': posts - 1,
   'threads': threads - 1
 }
-
 
 return update
 }
