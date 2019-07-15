@@ -16,8 +16,13 @@ async function main () {
   await registerJoystreamTypes()
   const api = await ApiPromise.create(provider)
 
-  STATUS = await getStatusUpdate(api)
-  await sleepSeconds(6)
+  while (true) {
+    try {
+      STATUS = await getStatusUpdate(api)
+    } catch (err) { console.error(err.message) }
+
+    await sleepSeconds(6)
+  }
 }
 
 main()
