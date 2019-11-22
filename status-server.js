@@ -13,8 +13,9 @@ async function main () {
   // const provider = new api_1.WsProvider('wss://staging-reckless.joystream.org/reckless/rpc/');
   // const provider = new api_1.WsProvider('wss://staging-lts.joystream.org/staging/rpc/');
   const provider = new WsProvider('ws://127.0.0.1:9944')
-  await registerJoystreamTypes()
-  const api = await ApiPromise.create(provider)
+  registerJoystreamTypes()
+  const api = await ApiPromise.create({provider})
+  await api.isReady;
 
   while (true) {
     try {

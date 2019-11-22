@@ -23,10 +23,10 @@ async function getStatusUpdate (api) {
   // Retrieve finalized block height
   const finalizedHash = await api.rpc.chain.getFinalizedHead()
   const finalizedBlockNumber = await api.rpc.chain.getHeader(`${finalizedHash}`)
-  update.block_height = (finalizedBlockNumber.blockNumber)
+  update.block_height = (finalizedBlockNumber.number)
 
   // Retrieve runtime data
-  const runtimeVersion = await api.rpc.chain.getRuntimeVersion(`${finalizedHash}`)
+  const runtimeVersion = await api.rpc.state.getRuntimeVersion(`${finalizedHash}`)
   update.runtime_version = {
     'spec_name': runtimeVersion.specName,
     'impl_name': runtimeVersion.implName,
@@ -59,9 +59,9 @@ async function getStatusUpdate (api) {
   }
 
   // Retrieve membership data
-  const memberships = await api.query.membership.nextMemberId()
+  const membersCreated = await api.query.members.membersCreated()
   update.memberships = {
-    'platform_members': memberships - 1
+    'platform_members': membersCreated
   }
 
   // Retrieve role data
