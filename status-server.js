@@ -1,17 +1,7 @@
-/*
-if (typeof window === 'undefined') {
-  const noop = () => {}
-  global.window = {}
-  window.addEventListener = noop
-}
-*/
-"use strict";
-// @ts-check
-Object.defineProperty(exports, "__esModule", { value: true });
+'use strict'
 
-const api_1 = require("@polkadot/api");
-const types_1 = require("@joystream/types");
-const BN = require('bn.js');
+const { ApiPromise, WsProvider } = require('@polkadot/api')
+const { registerJoystreamTypes } = require('@joystream/types')
 const getStatusUpdate = require('./getstatus')
 const express = require('express')
 const sleepSeconds = require('./sleep')
@@ -20,15 +10,16 @@ const app = express()
 var STATUS = {}
 
 async function main () {
-  //const provider = new api_1.WsProvider('wss://staging-reckless.joystream.org/reckless/rpc/');
-  //const provider = new api_1.WsProvider('wss://staging-lts.joystream.org/staging/rpc/');
-  const provider = new api_1.WsProvider('ws://127.0.0.1:9944');
-  await types_1.registerJoystreamTypes();
-  await api_1.ApiPromise.create(provider);
+  // const provider = new WsProvider('wss://staging-reckless.joystream.org/reckless/rpc/');
+  // const provider = new WsProvider('wss://staging-lts.joystream.org/staging/rpc/');
+  const provider = new WsProvider('ws://127.0.0.1:9944')
+  registerJoystreamTypes()
+  const api = await ApiPromise.create({provider})
+  await api.isReady;
 
   while (true) {
     try {
-      STATUS = await getStatusUpdate()
+      STATUS = await getStatusUpdate(api)
     } catch (err) { console.error(err.message) }
 
     await sleepSeconds(6)
