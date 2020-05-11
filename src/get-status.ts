@@ -24,6 +24,7 @@ export async function getStatus() {
     media: await api.mediaData(),
     dollarPool: await api.dollarPool(),
     exchanges: await api.exchanges(),
+    price: await api.price(),
   });
 
   return status;

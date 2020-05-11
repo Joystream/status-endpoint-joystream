@@ -2,6 +2,7 @@ import { WsProvider, ApiPromise } from "@polkadot/api";
 import { u128, Vec, u32 } from "@polkadot/types";
 import { registerJoystreamTypes } from "@joystream/types";
 import { db } from "./db";
+import BigNumber from "bignumber.js";
 
 export class JoyApi {
   endpoint: string;
@@ -188,7 +189,8 @@ export class JoyApi {
   }
 
   async burned() {
-    return (await db).valueOf();
+    let { tokensBurned } = (await db).valueOf();
+    return tokensBurned;
   }
 
   async dollarPool() {
@@ -198,6 +200,13 @@ export class JoyApi {
       size: sizeDollarPool,
       replenishAmount,
     };
+  }
+
+  async price() {
+    let supply = new BigNumber((await this.IssuanceMinusBurned()).toNumber());
+    let size = new BigNumber((await this.dollarPool()).size);
+
+    return size.div(supply).toFixed(3);
   }
 
   async exchanges() {
