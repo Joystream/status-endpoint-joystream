@@ -1,6 +1,7 @@
 import { WsProvider, ApiPromise } from "@polkadot/api";
 import { u128, Vec, u32 } from "@polkadot/types";
 import { registerJoystreamTypes } from "@joystream/types";
+import { db } from "./db";
 
 export class JoyApi {
   endpoint: string;
@@ -35,12 +36,6 @@ export class JoyApi {
     )) as u128;
 
     return issuance.sub(burned);
-  }
-
-  async burned() {
-    let total = await this.totalIssuance();
-    let real = await this.IssuanceMinusBurned();
-    return total.sub(real);
   }
 
   async contentDirectorySize() {
@@ -190,5 +185,23 @@ export class JoyApi {
       size,
       activeCurators,
     };
+  }
+
+  async burned() {
+    return (await db).valueOf();
+  }
+
+  async dollarPool() {
+    let { sizeDollarPool, replenishAmount } = (await db).valueOf() as any;
+
+    return {
+      size: sizeDollarPool,
+      replenishAmount,
+    };
+  }
+
+  async exchanges() {
+    let { exchanges } = (await db).valueOf() as any;
+    return exchanges;
   }
 }

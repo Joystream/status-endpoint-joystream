@@ -1,0 +1,42 @@
+{
+  "exchanges": [
+    {
+      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "amount": "",
+      "tokens": 123,
+      "usdTotal": 12,
+      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
+    },
+    {
+      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "amount": "",
+      "tokens": 123,
+      "usdTotal": 12,
+      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
+    },
+    {
+      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "amount": "",
+      "tokens": 123,
+      "usdTotal": 12,
+      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
+    },
+    {
+      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "amount": "",
+      "tokens": 123,
+      "usdTotal": 12,
+      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
+    },
+    {
+      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "amount": "",
+      "tokens": 123,
+      "usdTotal": 12,
+      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
+    }
+  ],
+  "replenishAmount": 100,
+  "sizeDollarPool": 1000,
+  "tokensBurned": 30000000
+}
