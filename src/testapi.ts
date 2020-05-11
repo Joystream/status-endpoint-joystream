@@ -1,4 +1,5 @@
 import { JoyApi } from "./joyApi";
+import { PromiseAllObj } from "./utils";
 import { config } from "dotenv";
 config();
 
@@ -9,19 +10,24 @@ const api = new JoyApi(provider);
 async function main() {
   await api.init;
 
-  //   console.log(`Total Issuance: ${(await api.totalIssuance()).toNumber()}`);
-  //   console.log(
-  //     `Issuance Minus Burned: ${(await api.IssuanceMinusBurned()).toNumber()}`
-  //   );
+  const status = await PromiseAllObj({
+    totalIssuance: (await api.totalIssuance()).toNumber(),
+    actualIssuance: (await api.IssuanceMinusBurned()).toNumber(),
+    burned: (await api.burned()).toNumber(),
+    system: await api.systemData(),
+    block_height: await api.finalizedBlockHeight(),
+    council: await api.councilData(),
+    validators: await api.validatorsData(),
+    memberships: await api.membershipData(),
+    roles: await api.rolesData(),
+    forum: await api.forumData(),
+    media: await api.mediaData(),
+  });
 
-  //   console.log(
-  //     `Total size of the content directory: ${await api.contentDirectorySize()}`
-  //   );
-
-  return api.activeCurators();
+  return status;
 }
 main()
-  .then((res: any) => {
+  .then((res) => {
     console.log(res);
   })
   .catch(console.error)

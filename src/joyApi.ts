@@ -1,7 +1,6 @@
 import { WsProvider, ApiPromise } from "@polkadot/api";
 import { u128, Vec, u32 } from "@polkadot/types";
 import { registerJoystreamTypes } from "@joystream/types";
-//import { Codec } from "@polkadot/types/types";
 
 export class JoyApi {
   endpoint: string;
@@ -38,6 +37,12 @@ export class JoyApi {
     return issuance.sub(burned);
   }
 
+  async burned() {
+    let total = await this.totalIssuance();
+    let real = await this.IssuanceMinusBurned();
+    return total.sub(real);
+  }
+
   async contentDirectorySize() {
     let contentIds = (await this.api.query.dataDirectory.knownContentIds()) as Vec<
       u32
@@ -52,7 +57,7 @@ export class JoyApi {
       .map((content: any) => content.toJSON())
       .reduce((sum, { size }) => Number(sum) + size, 0);
   }
-
+  // TODO: This looks bad. Can it be improved with API methods?
   async curators(): Promise<any[]> {
     return [
       ...((await this.api.query.contentWorkingGroup.curatorById()) as any).entries(),
@@ -69,5 +74,121 @@ export class JoyApi {
       }
     }
     return activeCount;
+  }
+
+  async systemData() {
+    const [chain, nodeName, nodeVersion, peers] = await Promise.all([
+      this.api.rpc.system.chain(),
+      this.api.rpc.system.name(),
+      this.api.rpc.system.version(),
+      this.api.rpc.system.peers(),
+    ]);
+
+    return {
+      chain: chain.toString(),
+      nodeName: nodeName.toString(),
+      nodeVersion: nodeVersion.toString(),
+      peerCount: peers.length,
+    };
+  }
+
+  async finalizedHash() {
+    return this.api.rpc.chain.getFinalizedHead();
+  }
+
+  async finalizedBlockHeight() {
+    const finalizedHash = await this.finalizedHash();
+    const { number } = await this.api.rpc.chain.getHeader(`${finalizedHash}`);
+    return number.toNumber();
+  }
+
+  async runtimeData() {
+    const runtimeVersion = await this.api.rpc.state.getRuntimeVersion(
+      `${await this.finalizedHash()}`
+    );
+    return {
+      spec_name: runtimeVersion.specName,
+      impl_name: runtimeVersion.implName,
+      spec_version: runtimeVersion.specVersion,
+    };
+  }
+
+  async councilData() {
+    const [councilMembers, electionStage]: [any, any] = await Promise.all([
+      this.api.query.council.activeCouncil(),
+      this.api.query.councilElection.stage(),
+    ]);
+
+    return {
+      members_count: councilMembers.length,
+      election_stage: electionStage.isSome
+        ? electionStage.unwrap().type
+        : "Not Running",
+    };
+  }
+
+  async validatorsData() {
+    const validators = (await this.api.query.session.validators()) as Vec<any>;
+
+    let balances = (await Promise.all(
+      validators.map((validator) =>
+        this.api.query.balances.freeBalance(validator)
+      )
+    )) as u128[];
+    let total_stake = balances.reduce(
+      (sum: any, x: any) => sum.add(x),
+      new u128(0)
+    );
+
+    return {
+      count: validators.length,
+      validators: validators.toJSON(),
+      total_stake: total_stake.toNumber(),
+    };
+  }
+
+  async membershipData() {
+    const membersCreated = await this.api.query.members.membersCreated();
+    return {
+      platform_members: membersCreated.toJSON(),
+    };
+  }
+
+  async rolesData() {
+    const [storageProviders] = (await Promise.all([
+      this.api.query.actors.actorAccountIds(),
+    ])) as any;
+
+    return {
+      storage_providers: storageProviders.length,
+    };
+  }
+
+  async forumData() {
+    const [posts, threads] = (await Promise.all([
+      this.api.query.forum.nextPostId(),
+      this.api.query.forum.nextThreadId(),
+    ])) as [any, any];
+
+    return {
+      posts: posts - 1,
+      threads: threads - 1,
+    };
+  }
+
+  async mediaData() {
+    // Retrieve media data (will add size of content later)
+    const [contentDirectory] = (await Promise.all([
+      this.api.query.dataDirectory.knownContentIds(),
+    ])) as any;
+
+    const size = await this.contentDirectorySize();
+    const activeCurators = await this.activeCurators();
+
+    return {
+      media_files: contentDirectory.length,
+      size,
+      activeCurators,
+    };
   }
 }
