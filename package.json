@@ -4,6 +4,7 @@
   "main": "status-server.js",
   "license": "MIT",
   "scripts": {
+    "dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/testapi.ts",
     "build": "tsc --build tsconfig.json"
   },
   "dependencies": {
@@ -15,10 +16,13 @@
     "@polkadot/util-crypto": "^1.7.0-beta.5",
     "@types/bn.js": "^4.11.5",
     "bn.js": "^4.11.8",
+    "dotenv": "^8.2.0",
     "express": "^4.17.1"
   },
   "devDependencies": {
     "@polkadot/ts": "^0.1.82",
+    "nodemon": "^2.0.3",
+    "ts-node": "^8.10.1",
     "typescript": "^3.6.4"
   }
 }
