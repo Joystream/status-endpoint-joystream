@@ -1,13 +1,19 @@
 # status-endpoint-joystream
+
 Status endpoint for the Joystream network
 
 ## How to Install
 
-Clone the repo, then:
+Clone the repo, then run:
+
 ```
-$ yarn && yarn build
+$ yarn
 ```
-To start hosting the server:
+
+to install. Add your config variables to `env.example` and rename it to `.env` and then run:
+
 ```
-$ node status-server.js
+$ yarn start
 ```
+
+to start and build the server.
