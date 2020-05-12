@@ -34,7 +34,8 @@ async function main() {
           const feesJOY = event.data[3] as Balance;
           const timestamp = await api.query.timestamp.now.at(blockHash) as Moment;
           const memo = await api.query.memo.memo.at(blockHash, sender) as Text;
-          const price = await joy.price(blockHash);
+          // For price we use parent hash (so it's a price before the transaction, not after)
+          const price = await joy.price(head.parentHash);
 
           const exchange: Exchange = {
             sender: sender.toString(),

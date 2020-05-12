@@ -29,6 +29,16 @@
       "date": "2020-05-12T13:04:06.000Z",
       "blockHeight": 1908,
       "price": 0.003
+    },
+    {
+      "sender": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "recipient": "5DiNxgrprTPRu8iq4LhN8oaCSN17jzSfud1MYdjae1wkieQv",
+      "senderMemo": "Memo test",
+      "amount": 100,
+      "fees": 0,
+      "date": "2020-05-12T13:17:48.000Z",
+      "blockHeight": 2045,
+      "price": 0.003
     }
   ],
   "replenishAmount": 100,
