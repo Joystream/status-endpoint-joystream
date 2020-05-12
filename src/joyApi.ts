@@ -3,6 +3,7 @@ import { u128, Vec, u32 } from "@polkadot/types";
 import { registerJoystreamTypes } from "@joystream/types";
 import { db } from "./db";
 import BigNumber from "bignumber.js";
+import { Hash } from "@polkadot/types/interfaces";
 
 export class JoyApi {
   endpoint: string;
@@ -25,18 +26,22 @@ export class JoyApi {
     });
   }
 
-  async totalIssuance() {
-    const issuance = (await this.api.query.balances.totalIssuance()) as u128;
-    return issuance;
+  async totalIssuance(blockHash?: Hash) {
+    const issuance = blockHash === undefined ?
+      await this.api.query.balances.totalIssuance() :
+      await this.api.query.balances.totalIssuance.at(blockHash);
+
+    return issuance as u128;
   }
 
-  async IssuanceMinusBurned() {
-    const issuance = await this.totalIssuance();
-    const burned = (await this.api.query.balances.freeBalance(
-      process.env.JSGENESIS_ADDRESS
-    )) as u128;
+  async IssuanceMinusBurned(blockHash?: Hash) {
+    const issuance = await this.totalIssuance(blockHash);
+    const burnAddr = process.env.JSGENESIS_ADDRESS;
+    const burned = blockHash === undefined ?
+      await this.api.query.balances.freeBalance(burnAddr)
+      : await this.api.query.balances.freeBalance.at(blockHash, burnAddr);
 
-    return issuance.sub(burned);
+    return issuance.sub(burned as u128);
   }
 
   async contentDirectorySize() {
@@ -202,8 +207,8 @@ export class JoyApi {
     };
   }
 
-  async price() {
-    let supply = new BigNumber((await this.IssuanceMinusBurned()).toNumber());
+  async price(blockHash?: Hash) {
+    let supply = new BigNumber((await this.IssuanceMinusBurned(blockHash)).toNumber());
     let size = new BigNumber((await this.dollarPool()).size);
 
     return size.div(supply).toFixed(3);

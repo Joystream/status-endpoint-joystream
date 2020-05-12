@@ -1,44 +1,34 @@
 {
   "exchanges": [
     {
-      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
-      "amount": "",
-      "tokens": 123,
-      "usdTotal": 12,
-      "createdAt": "December 17, 1995 03:24:00",
-      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
+      "sender": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "recipient": "5DiNxgrprTPRu8iq4LhN8oaCSN17jzSfud1MYdjae1wkieQv",
+      "senderMemo": "Memo test",
+      "amount": 100,
+      "fees": 0,
+      "date": "2020-05-12T12:57:48.000Z",
+      "blockHeight": 1845,
+      "price": 0.003
     },
     {
-      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
-      "amount": "",
-      "tokens": 123,
-      "usdTotal": 12,
-      "createdAt": "December 17, 1995 03:24:00",
-      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
+      "sender": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "recipient": "5DiNxgrprTPRu8iq4LhN8oaCSN17jzSfud1MYdjae1wkieQv",
+      "senderMemo": "Memo test",
+      "amount": 100,
+      "fees": 0,
+      "date": "2020-05-12T12:59:00.000Z",
+      "blockHeight": 1857,
+      "price": 0.003
     },
     {
-      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
-      "amount": "",
-      "tokens": 123,
-      "usdTotal": 12,
-      "createdAt": "December 17, 1995 03:24:00",
-      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
-    },
-    {
-      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
-      "amount": "",
-      "tokens": 123,
-      "usdTotal": 12,
-      "createdAt": "December 17, 1995 03:24:00",
-      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
-    },
-    {
-      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
-      "amount": "",
-      "tokens": 123,
-      "usdTotal": 12,
-      "createdAt": "December 17, 1995 03:24:00",
-      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
+      "sender": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "recipient": "5DiNxgrprTPRu8iq4LhN8oaCSN17jzSfud1MYdjae1wkieQv",
+      "senderMemo": "Memo test",
+      "amount": 999,
+      "fees": 0,
+      "date": "2020-05-12T13:04:06.000Z",
+      "blockHeight": 1908,
+      "price": 0.003
     }
   ],
   "replenishAmount": 100,
