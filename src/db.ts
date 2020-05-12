@@ -15,7 +15,7 @@ type Exchange = {
 type Schema = {
     exchanges: Exchange[];
     sizeDollarPool: number,
-    poolLastUpdated: number, // Block number
+    lastBlockProcessed: number,
     replenishAmount: number,
     tokensBurned: number
 };
