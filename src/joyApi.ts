@@ -207,9 +207,9 @@ export class JoyApi {
     };
   }
 
-  async price(blockHash?: Hash) {
+  async price(blockHash?: Hash, dollarPoolSize?: number) {
     let supply = new BigNumber((await this.IssuanceMinusBurned(blockHash)).toNumber());
-    let size = new BigNumber((await this.dollarPool()).size);
+    let size = new BigNumber(dollarPoolSize !== undefined ? dollarPoolSize : (await this.dollarPool()).size);
 
     return size.div(supply).toFixed(3);
   }
