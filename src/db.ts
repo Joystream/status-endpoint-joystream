@@ -12,15 +12,21 @@ type Exchange = {
     price: number
 };
 
+type BlockProcessingError = {
+    blockNumber: number;
+    reason?: string;
+}
+
 type Schema = {
     exchanges: Exchange[];
     sizeDollarPool: number,
     lastBlockProcessed: number,
     replenishAmount: number,
-    tokensBurned: number
+    tokensBurned: number,
+    errors: BlockProcessingError[]
 };
 
 const adapter = new FileAsync<Schema>("exchanges.test.json");
 const db = low(adapter);
 
-export { db, Exchange };
+export { db, Exchange, BlockProcessingError };
