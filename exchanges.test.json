@@ -1,0 +1,47 @@
+{
+  "exchanges": [
+    {
+      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "amount": "",
+      "tokens": 123,
+      "usdTotal": 12,
+      "createdAt": "December 17, 1995 03:24:00",
+      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
+    },
+    {
+      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "amount": "",
+      "tokens": 123,
+      "usdTotal": 12,
+      "createdAt": "December 17, 1995 03:24:00",
+      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
+    },
+    {
+      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "amount": "",
+      "tokens": 123,
+      "usdTotal": 12,
+      "createdAt": "December 17, 1995 03:24:00",
+      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
+    },
+    {
+      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "amount": "",
+      "tokens": 123,
+      "usdTotal": 12,
+      "createdAt": "December 17, 1995 03:24:00",
+      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
+    },
+    {
+      "account": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "amount": "",
+      "tokens": 123,
+      "usdTotal": 12,
+      "createdAt": "December 17, 1995 03:24:00",
+      "xmrAddress": "4AtpuJrusY7QLDdjjcXTuUQNjw3taZNcWDEY3vfRVKeGAKtuWqt9UwjVk9DXxNUwQxDNTSDJYKLXw9NpDA4Z8gasCu2pvPX"
+    }
+  ],
+  "replenishAmount": 100,
+  "sizeDollarPool": 124256,
+  "tokensBurned": 30000000
+}
