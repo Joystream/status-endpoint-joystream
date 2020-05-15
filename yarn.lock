@@ -248,6 +248,11 @@
   resolved "https://registry.yarnpkg.com/@types/filewriter/-/filewriter-0.0.28.tgz#c054e8af4d9dd75db4e63abc76f885168714d4b3"
   integrity sha1-wFTor02d11205jq8dviFFocU1LM=
 
+"@types/locks@^0.2.1":
+  version "0.2.1"
+  resolved "https://registry.yarnpkg.com/@types/locks/-/locks-0.2.1.tgz#0f19bb260d67fd70501686381d702a2695f62965"
+  integrity sha512-bYPg6w1CgCUbZwDVp4a483FoZVM8glIfqU2Zx8sl5tJt4Dd9Gz/ya8+3KpCIvedT/ooNqP2/yHqHBjndYNgGbA==
+
 "@types/lodash@*":
   version "4.14.150"
   resolved "https://registry.yarnpkg.com/@types/lodash/-/lodash-4.14.150.tgz#649fe44684c3f1fcb6164d943c5a61977e8cf0bd"
@@ -1284,6 +1289,11 @@ latest-version@^5.0.0:
   integrity sha512-weT+r0kTkRQdCdYCNtkMwWXQTMEswKrFBkm4ckQOMVhhqhIMI1UT2hMj+1iigIhgSZm5gTmrRXBNoGUgaTY1xA==
   dependencies:
     package-json "^6.3.0"
+
+locks@^0.2.2:
+  version "0.2.2"
+  resolved "https://registry.yarnpkg.com/locks/-/locks-0.2.2.tgz#259933d1327cbaf0fd3662f8fffde36809d84ced"
+  integrity sha1-JZkz0TJ8uvD9NmL4//3jaAnYTO0=
 
 lodash@4:
   version "4.17.15"
