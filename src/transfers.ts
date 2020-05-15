@@ -87,7 +87,7 @@ async function processBlock(api: ApiPromise, head: Header) {
               const exchange: Exchange = {
                 sender: sender.toString(),
                 recipient: recipient.toString(),
-                senderMemo: memo.toString(),
+                xmrAddress: memo.toString(),
                 amount: amountJOY.toNumber(),
                 fees: feesJOY.toNumber(),
                 date: new Date(timestamp.toNumber()),
