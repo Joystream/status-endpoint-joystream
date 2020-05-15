@@ -70,7 +70,7 @@ async function processBlock(api: ApiPromise, head: Header) {
         let sumDollarsInBlock = 0, sumTokensInBlock = 0;
 
         // To calcultate the price we use parent hash (so all the transactions that happend in this block have no effect on it)
-        const price = await joy.price(head.parentHash, currentDollarPool);
+        const price = parseFloat(await joy.price(head.parentHash, currentDollarPool));
 
         // Processing all events in the finalized block
         for (let { event } of events) {
@@ -83,6 +83,7 @@ async function processBlock(api: ApiPromise, head: Header) {
               const feesJOY = event.data[3] as Balance;
               const timestamp = await api.query.timestamp.now.at(blockHash) as Moment;
               const memo = await api.query.memo.memo.at(blockHash, sender) as Text;
+              const amountUSD = price * amountJOY.toNumber();
 
               const exchange: Exchange = {
                 sender: sender.toString(),
@@ -92,7 +93,8 @@ async function processBlock(api: ApiPromise, head: Header) {
                 fees: feesJOY.toNumber(),
                 date: new Date(timestamp.toNumber()),
                 blockHeight: blockNumber.toNumber(),
-                price: parseFloat(price),
+                price: price,
+                amountUSD: amountUSD
               };
 
               await (await db)
@@ -103,7 +105,7 @@ async function processBlock(api: ApiPromise, head: Header) {
 
               console.log('Exchange happened!', exchange);
 
-              sumDollarsInBlock += exchange.amount * exchange.price;
+              sumDollarsInBlock += exchange.amountUSD;
               sumTokensInBlock  += exchange.amount;
             }
           }

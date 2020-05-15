@@ -9,7 +9,8 @@ type Exchange = {
     fees: number,
     date: Date,
     blockHeight: number,
-    price: number
+    price: number,
+    amountUSD: number
 };
 
 type BlockProcessingError = {
