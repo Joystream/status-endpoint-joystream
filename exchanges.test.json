@@ -43,5 +43,6 @@
   ],
   "replenishAmount": 100,
   "sizeDollarPool": 124256,
-  "tokensBurned": 30000000
+  "tokensBurned": 30000000,
+  "lastBlockProcessed": 120
 }
