@@ -4,17 +4,35 @@ import { registerJoystreamTypes } from "@joystream/types";
 import { db } from "./db";
 import BigNumber from "bignumber.js";
 import { Hash } from "@polkadot/types/interfaces";
+import { Keyring } from "@polkadot/keyring";
+import { config } from "dotenv";
+
+// Init .env config
+config();
+
+// Burn key pair generation
+const burnSeed = process.env.BURN_ADDRESS_SEED;
+const keyring = new Keyring();
+if (burnSeed === undefined) {
+  throw new Error('Missing BURN_ADDRESS_SEED in .env!');
+}
+keyring.addFromMnemonic(burnSeed);
+export const BURN_PAIR = keyring.getPairs()[0];
+export const BURN_ADDRESS = BURN_PAIR.address;
+
+console.log('BURN ADDRESS:', BURN_ADDRESS);
 
 export class JoyApi {
   endpoint: string;
   isReady: Promise<ApiPromise>;
   api!: ApiPromise;
 
-  constructor(endpoint: string) {
-    this.endpoint = endpoint;
+  constructor(endpoint?: string) {
+    const wsEndpoint = endpoint || process.env.PROVIDER || "ws://127.0.0.1:9944";
+    this.endpoint = wsEndpoint;
     this.isReady = (async () => {
       registerJoystreamTypes();
-      const api = await new ApiPromise({ provider: new WsProvider(endpoint) })
+      const api = await new ApiPromise({ provider: new WsProvider(wsEndpoint) })
         .isReady;
       return api;
     })();
@@ -36,7 +54,7 @@ export class JoyApi {
 
   async IssuanceMinusBurned(blockHash?: Hash) {
     const issuance = await this.totalIssuance(blockHash);
-    const burnAddr = process.env.JSGENESIS_ADDRESS;
+    const burnAddr = BURN_ADDRESS;
     const burned = blockHash === undefined ?
       await this.api.query.balances.freeBalance(burnAddr)
       : await this.api.query.balances.freeBalance.at(blockHash, burnAddr);

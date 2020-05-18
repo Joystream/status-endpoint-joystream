@@ -1,19 +1,15 @@
 //import { db } from "./testdb";
-import { JoyApi } from "./joyApi";
-import { config } from "dotenv";
+import { JoyApi, BURN_PAIR, BURN_ADDRESS } from "./joyApi";
 import { Text } from "@polkadot/types";
 import { Vec } from '@polkadot/types/codec';
 import { EventRecord, Moment, AccountId, Balance, Header } from '@polkadot/types/interfaces';
-import { db, Exchange, BlockProcessingError } from './db';
+import { db, Exchange, BlockProcessingError, Burn } from './db';
 import { ApiPromise } from "@polkadot/api";
 import locks from "locks";
-config();
 
 const processingLock = locks.createMutex();
 
-const provider = process.env.PROVIDER || "ws://127.0.0.1:9944";
-
-const joy = new JoyApi(provider);
+const joy = new JoyApi();
 
 const BLOCK_PROCESSING_TIMEOUT = 10000;
 const FIRST_BLOCK_TO_PROCESS = 1;
@@ -40,6 +36,22 @@ async function critialExit(faultBlockNumber: number, reason?: string) {
   console.log('Faulty block:', faultBlockNumber);
   console.log('Reason:', reason);
   process.exit();
+}
+
+// Exectue the actual tokens burn
+async function executeBurn(api: ApiPromise, amount: number) {
+  console.log(`Executing the actual burn of ${ amount } tokens...`);
+  const txHash = await api.tx.balances
+    .transfer(BURN_ADDRESS, 0)
+    .signAndSend(BURN_PAIR, { tip: amount - 1 });
+
+  await (await db)
+    .defaults({ burns: [] as Burn[] })
+    .get('burns')
+    .push({ txHash: txHash.toHex(), amount })
+    .write();
+  
+  console.log('Burning transaction sent and logged!');
 }
 
 async function processBlock(api: ApiPromise, head: Header) {
@@ -76,7 +88,7 @@ async function processBlock(api: ApiPromise, head: Header) {
         for (let { event } of events) {
           if (event.section === 'balances' && event.method === 'Transfer') {
             const recipient = event.data[1] as AccountId;
-            if (recipient.toString() === process.env.JSGENESIS_ADDRESS) {
+            if (recipient.toString() === BURN_ADDRESS) {
               // For all events of "Transfer" type with matching recipient...
               const sender = event.data[0] as AccountId;
               const amountJOY = event.data[2] as Balance;
@@ -123,6 +135,10 @@ async function processBlock(api: ApiPromise, head: Header) {
         console.log('Dollars in block:', sumDollarsInBlock);
         console.log('Dollar pool after:', currentDollarPool - sumDollarsInBlock);
         console.log('Tokens burned after:', currentTokensBurned + sumTokensInBlock);
+
+        if (sumTokensInBlock) {
+          await executeBurn(api, sumTokensInBlock);
+        }
 
         processingLock.unlock();
         clearTimeout(processingTimeout);
