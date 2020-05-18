@@ -8,6 +8,7 @@ import { ApiPromise } from "@polkadot/api";
 import locks from "locks";
 
 const processingLock = locks.createMutex();
+const burningLock = locks.createMutex();
 
 const joy = new JoyApi();
 
@@ -39,19 +40,28 @@ async function critialExit(faultBlockNumber: number, reason?: string) {
 }
 
 // Exectue the actual tokens burn
-async function executeBurn(api: ApiPromise, amount: number) {
-  console.log(`Executing the actual burn of ${ amount } tokens...`);
-  const txHash = await api.tx.balances
-    .transfer(BURN_ADDRESS, 0)
-    .signAndSend(BURN_PAIR, { tip: amount - 1 });
-
-  await (await db)
-    .defaults({ burns: [] as Burn[] })
-    .get('burns')
-    .push({ txHash: txHash.toHex(), amount })
-    .write();
-  
-  console.log('Burning transaction sent and logged!');
+function executeBurn(api: ApiPromise, amount: number, blockNumber: number) {
+  // We need to use the lock to prevent executing multiple burns in the same block, since it causes transaction priority errors
+  burningLock.lock(async () => {
+    console.log(`Executing the actual burn of ${ amount } tokens (recieved in block #${ blockNumber })...`);
+    await api.tx.balances
+      .transfer(BURN_ADDRESS, 0)
+      .signAndSend(BURN_PAIR, { tip: amount - 1 }, async result => {
+        let finished = result.status.isFinalized || result.isError;
+        if (finished) {
+          let finalStatus = result.status.type.toString() || 'Error', finalizedBlockHash: string | undefined;
+          if (result.status.isFinalized) {
+            finalizedBlockHash = result.status.asFinalized.toHex();
+          }
+          await (await db)
+            .defaults({ burns: [] as Burn[] })
+            .get('burns')
+            .push({ amount, tokensRecievedAtBlock: blockNumber, finalizedBlockHash, finalStatus })
+            .write();
+          burningLock.unlock();
+        }
+      });
+  });
 }
 
 async function processBlock(api: ApiPromise, head: Header) {
@@ -137,7 +147,7 @@ async function processBlock(api: ApiPromise, head: Header) {
         console.log('Tokens burned after:', currentTokensBurned + sumTokensInBlock);
 
         if (sumTokensInBlock) {
-          await executeBurn(api, sumTokensInBlock);
+          executeBurn(api, sumTokensInBlock, blockNumber.toNumber()); // No need to await this, otherwise it'll make the entire process very slow
         }
 
         processingLock.unlock();

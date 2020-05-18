@@ -19,8 +19,10 @@ type BlockProcessingError = {
 }
 
 type Burn = {
-    txHash: string,
-    amount: number
+    amount: number,
+    tokensRecievedAtBlock: number,
+    finalStatus: string,
+    finalizedBlockHash?: string,
 }
 
 type Schema = {
