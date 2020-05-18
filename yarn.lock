@@ -9,14 +9,15 @@
   dependencies:
     regenerator-runtime "^0.13.4"
 
-"@joystream/types@^0.9.0":
-  version "0.9.0"
-  resolved "https://registry.yarnpkg.com/@joystream/types/-/types-0.9.0.tgz#1e50c13fad51c54cd70e389f6879a7ef25a43a6c"
-  integrity sha512-3+iggnMGAQOg6/EhkksZb5VhvQMRo7WoBvIHCdBrzL7iSG53DTmcs8uyn+md3KvUZ5I2JPdT42u0hIDXAs+guA==
+"@joystream/types@^0.9.1":
+  version "0.9.1"
+  resolved "https://registry.yarnpkg.com/@joystream/types/-/types-0.9.1.tgz#9dfacd679e91fe7e2e5e72eb1dc292bfa65b227e"
+  integrity sha512-UiaD2mf1wRPhmG1lPWFH0H835Ic79cZynSvyDnanAXKBiazW2rqZRxTWyc0gRXPGCcu79PN9VbJdK67QkNI9Gg==
   dependencies:
     "@polkadot/types" "^0.96.1"
     "@types/vfile" "^4.0.0"
     ajv "^6.11.0"
+    lodash "^4.17.15"
 
 "@opencensus/core@0.0.9":
   version "0.0.9"
