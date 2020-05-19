@@ -1,11 +1,7 @@
 import { JoyApi } from "./joyApi";
 import { PromiseAllObj } from "./utils";
-import { config } from "dotenv";
-config();
 
-const provider = process.env.PROVIDER || "ws://127.0.0.1:9944";
-
-const api = new JoyApi(provider);
+const api = new JoyApi();
 
 export async function getStatus() {
   await api.init;

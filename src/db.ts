@@ -4,6 +4,7 @@ import FileAsync from "lowdb/adapters/FileAsync";
 type Exchange = {
     sender: string,
     recipient: string,
+    senderMemo: string,
     xmrAddress: string,
     amount: number,
     fees: number,
@@ -18,16 +19,30 @@ type BlockProcessingError = {
     reason?: string;
 }
 
+type Burn = {
+    amount: number,
+    tokensRecievedAtBlock: number,
+    finalStatus: string,
+    finalizedBlockHash?: string,
+}
+
+type BlockProcessingWarning = {
+    blockNumber: number,
+    message: string
+}
+
 type Schema = {
     exchanges: Exchange[];
     sizeDollarPool: number,
     lastBlockProcessed: number,
     replenishAmount: number,
     tokensBurned: number,
-    errors: BlockProcessingError[]
+    errors: BlockProcessingError[],
+    warnings: BlockProcessingWarning[],
+    burns: Burn[]
 };
 
 const adapter = new FileAsync<Schema>("exchanges.test.json");
 const db = low(adapter);
 
-export { db, Exchange, BlockProcessingError };
+export { db, Exchange, BlockProcessingError, BlockProcessingWarning, Burn };
