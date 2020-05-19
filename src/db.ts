@@ -4,6 +4,7 @@ import FileAsync from "lowdb/adapters/FileAsync";
 type Exchange = {
     sender: string,
     recipient: string,
+    senderMemo: string,
     xmrAddress: string,
     amount: number,
     fees: number,
