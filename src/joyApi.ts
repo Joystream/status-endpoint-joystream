@@ -14,13 +14,13 @@ config();
 const burnSeed = process.env.BURN_ADDRESS_SEED;
 const keyring = new Keyring();
 if (burnSeed === undefined) {
-  throw new Error('Missing BURN_ADDRESS_SEED in .env!');
+  throw new Error("Missing BURN_ADDRESS_SEED in .env!");
 }
 keyring.addFromMnemonic(burnSeed);
 export const BURN_PAIR = keyring.getPairs()[0];
 export const BURN_ADDRESS = BURN_PAIR.address;
 
-console.log('BURN ADDRESS:', BURN_ADDRESS);
+console.log("BURN ADDRESS:", BURN_ADDRESS);
 
 export class JoyApi {
   endpoint: string;
@@ -28,7 +28,8 @@ export class JoyApi {
   api!: ApiPromise;
 
   constructor(endpoint?: string) {
-    const wsEndpoint = endpoint || process.env.PROVIDER || "ws://127.0.0.1:9944";
+    const wsEndpoint =
+      endpoint || process.env.PROVIDER || "ws://127.0.0.1:9944";
     this.endpoint = wsEndpoint;
     this.isReady = (async () => {
       registerJoystreamTypes();
@@ -45,9 +46,10 @@ export class JoyApi {
   }
 
   async totalIssuance(blockHash?: Hash) {
-    const issuance = blockHash === undefined ?
-      await this.api.query.balances.totalIssuance() :
-      await this.api.query.balances.totalIssuance.at(blockHash);
+    const issuance =
+      blockHash === undefined
+        ? await this.api.query.balances.totalIssuance()
+        : await this.api.query.balances.totalIssuance.at(blockHash);
 
     return issuance as u128;
   }
@@ -55,9 +57,10 @@ export class JoyApi {
   async IssuanceMinusBurned(blockHash?: Hash) {
     const issuance = await this.totalIssuance(blockHash);
     const burnAddr = BURN_ADDRESS;
-    const burned = blockHash === undefined ?
-      await this.api.query.balances.freeBalance(burnAddr)
-      : await this.api.query.balances.freeBalance.at(blockHash, burnAddr);
+    const burned =
+      blockHash === undefined
+        ? await this.api.query.balances.freeBalance(burnAddr)
+        : await this.api.query.balances.freeBalance.at(blockHash, burnAddr);
 
     return issuance.sub(burned as u128);
   }
@@ -226,10 +229,16 @@ export class JoyApi {
   }
 
   async price(blockHash?: Hash, dollarPoolSize?: number) {
-    let supply = new BigNumber((await this.IssuanceMinusBurned(blockHash)).toNumber());
-    let size = new BigNumber(dollarPoolSize !== undefined ? dollarPoolSize : (await this.dollarPool()).size);
+    let supply = new BigNumber(
+      (await this.IssuanceMinusBurned(blockHash)).toNumber()
+    );
+    let size = new BigNumber(
+      dollarPoolSize !== undefined
+        ? dollarPoolSize
+        : (await this.dollarPool()).size
+    );
 
-    return size.div(supply).toFixed(3);
+    return size.div(supply).toFixed();
   }
 
   async exchanges() {
