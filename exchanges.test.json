@@ -55,7 +55,7 @@
   "replenishAmount": 100,
   "sizeDollarPool": 124250,
   "tokensBurned": 30000500,
-  "lastBlockProcessed": 18768,
+  "lastBlockProcessed": 28263,
   "errors": [
     {
       "blockNumber": 16716,
@@ -71,6 +71,10 @@
     },
     {
       "blockNumber": 18754,
+      "reason": "\"Block processing timeout\""
+    },
+    {
+      "blockNumber": 25946,
       "reason": "\"Block processing timeout\""
     }
   ]
