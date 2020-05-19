@@ -3,7 +3,7 @@ import { JoyApi, BURN_PAIR, BURN_ADDRESS } from "./joyApi";
 import { Text } from "@polkadot/types";
 import { Vec } from '@polkadot/types/codec';
 import { EventRecord, Moment, AccountId, Balance, Header } from '@polkadot/types/interfaces';
-import { db, Exchange, BlockProcessingError, Burn } from './db';
+import { db, Exchange, BlockProcessingError, BlockProcessingWarning, Burn } from './db';
 import { ApiPromise } from "@polkadot/api";
 import locks from "locks";
 
@@ -14,6 +14,7 @@ const joy = new JoyApi();
 
 const BLOCK_PROCESSING_TIMEOUT = 10000;
 const FIRST_BLOCK_TO_PROCESS = 1;
+const PROBABILISTIC_FINALITY_DEPTH = 10;
 
 // Known account we want to use (available on dev chain, with funds)
 
@@ -44,23 +45,33 @@ function executeBurn(api: ApiPromise, amount: number, blockNumber: number) {
   // We need to use the lock to prevent executing multiple burns in the same block, since it causes transaction priority errors
   burningLock.lock(async () => {
     console.log(`Executing the actual burn of ${ amount } tokens (recieved in block #${ blockNumber })...`);
-    await api.tx.balances
-      .transfer(BURN_ADDRESS, 0)
-      .signAndSend(BURN_PAIR, { tip: amount - 1 }, async result => {
-        let finished = result.status.isFinalized || result.isError;
-        if (finished) {
-          let finalStatus = result.status.type.toString() || 'Error', finalizedBlockHash: string | undefined;
-          if (result.status.isFinalized) {
-            finalizedBlockHash = result.status.asFinalized.toHex();
+    try {
+      await api.tx.balances
+        .transfer(BURN_ADDRESS, 0)
+        .signAndSend(BURN_PAIR, { tip: amount - 1 }, async result => {
+          let finished = result.status.isFinalized || result.isError;
+          if (finished) {
+            let finalStatus = result.status.type.toString() || 'Error', finalizedBlockHash: string | undefined;
+            if (result.status.isFinalized) {
+              finalizedBlockHash = result.status.asFinalized.toHex();
+            }
+            await (await db)
+              .defaults({ burns: [] as Burn[] })
+              .get('burns')
+              .push({ amount, tokensRecievedAtBlock: blockNumber, finalizedBlockHash, finalStatus })
+              .write();
+            burningLock.unlock();
           }
-          await (await db)
-            .defaults({ burns: [] as Burn[] })
-            .get('burns')
-            .push({ amount, tokensRecievedAtBlock: blockNumber, finalizedBlockHash, finalStatus })
-            .write();
-          burningLock.unlock();
-        }
-      });
+        });
+      } catch(e) {
+        let finalStatus = 'Exception';
+        await (await db)
+          .defaults({ burns: [] as Burn[] })
+          .get('burns')
+          .push({ amount, tokensRecievedAtBlock: blockNumber, finalStatus })
+          .write();
+        burningLock.unlock();
+      }
   });
 }
 
@@ -74,11 +85,11 @@ async function processBlock(api: ApiPromise, head: Header) {
       );
       // Set lock to avoid processing multiple blocks at the same time
       processingLock.lock(async () => {
-        const blockNumber = head.number;
+        const blockNumber = head.number.toNumber();
         const { lastBlockProcessed = FIRST_BLOCK_TO_PROCESS - 1 } = (await db).valueOf();
 
         // Ignore blocks that are (or should be) already processed
-        if (blockNumber.toNumber() <= lastBlockProcessed) {
+        if (blockNumber <= lastBlockProcessed) {
           processingLock.unlock();
           clearTimeout(processingTimeout);
           return;
@@ -88,8 +99,18 @@ async function processBlock(api: ApiPromise, head: Header) {
 
         const blockHash = head.hash;
         const events = await api.query.system.events.at(blockHash) as Vec<EventRecord>;
+        const bestFinalized = (await api.derive.chain.bestNumberFinalized()).toNumber();
         const { sizeDollarPool: currentDollarPool = 0, tokensBurned: currentTokensBurned = 0 } = (await db).valueOf();
         let sumDollarsInBlock = 0, sumTokensInBlock = 0;
+
+        // Add warning if the block is not yet finalized
+        if (blockNumber > bestFinalized) {
+          await (await db)
+            .defaults({ warnings: [] as BlockProcessingWarning[] })
+            .get('warnings')
+            .push({ blockNumber, message: `Processing before finalized! Finalized: ${ bestFinalized }, Processing: ${ blockNumber }` })
+            .write();
+        }
 
         // To calcultate the price we use parent hash (so all the transactions that happend in this block have no effect on it)
         const price = parseFloat(await joy.price(head.parentHash, currentDollarPool));
@@ -114,7 +135,7 @@ async function processBlock(api: ApiPromise, head: Header) {
                 amount: amountJOY.toNumber(),
                 fees: feesJOY.toNumber(),
                 date: new Date(timestamp.toNumber()),
-                blockHeight: blockNumber.toNumber(),
+                blockHeight: blockNumber,
                 price: price,
                 amountUSD: amountUSD
               };
@@ -137,7 +158,7 @@ async function processBlock(api: ApiPromise, head: Header) {
         await (await db)
           .set('sizeDollarPool', currentDollarPool - sumDollarsInBlock)
           .set('tokensBurned', currentTokensBurned + sumTokensInBlock)
-          .set('lastBlockProcessed', blockNumber.toNumber())
+          .set('lastBlockProcessed', blockNumber)
           .write();
 
         console.log('Tokens in block:', sumTokensInBlock);
@@ -147,7 +168,7 @@ async function processBlock(api: ApiPromise, head: Header) {
         console.log('Tokens burned after:', currentTokensBurned + sumTokensInBlock);
 
         if (sumTokensInBlock) {
-          executeBurn(api, sumTokensInBlock, blockNumber.toNumber()); // No need to await this, otherwise it'll make the entire process very slow
+          executeBurn(api, sumTokensInBlock, blockNumber); // No need to await this, otherwise it'll make the entire process very slow
         }
 
         processingLock.unlock();
@@ -177,15 +198,14 @@ async function main() {
   // Create an await for the API
   const { api } = await joy.init;
 
-  api.rpc.chain.subscribeFinalizedHeads(async head => {
+  api.rpc.chain.subscribeNewHeads(async head => {
     const { lastBlockProcessed = FIRST_BLOCK_TO_PROCESS - 1 } = (await db).valueOf();
     const blockNumber = head.number.toNumber();
-    // Ignore already processed blocks
-    if (blockNumber <= lastBlockProcessed) return;
-    // Make sure all previous blocks are processed before processing the new one
-    await processPastBlocks(api, lastBlockProcessed + 1, head.number.toNumber());
-    // Process current block
-    await processBlock(api, head);
+    const blockNumberToProcess = blockNumber - PROBABILISTIC_FINALITY_DEPTH;
+    // Ignore already processed blocks and blocks before "FIRST_BLOCK_TO_PROCESS"
+    if (blockNumberToProcess <= lastBlockProcessed || blockNumberToProcess < FIRST_BLOCK_TO_PROCESS) return;
+    // Make sure all blocks between the last processed block and (including) current block to process are processed
+    await processPastBlocks(api, lastBlockProcessed + 1, blockNumberToProcess);
   });
 }
 

@@ -25,6 +25,11 @@ type Burn = {
     finalizedBlockHash?: string,
 }
 
+type BlockProcessingWarning = {
+    blockNumber: number,
+    message: string
+}
+
 type Schema = {
     exchanges: Exchange[];
     sizeDollarPool: number,
@@ -32,10 +37,11 @@ type Schema = {
     replenishAmount: number,
     tokensBurned: number,
     errors: BlockProcessingError[],
+    warnings: BlockProcessingWarning[],
     burns: Burn[]
 };
 
 const adapter = new FileAsync<Schema>("exchanges.test.json");
 const db = low(adapter);
 
-export { db, Exchange, BlockProcessingError, Burn };
+export { db, Exchange, BlockProcessingError, BlockProcessingWarning, Burn };
