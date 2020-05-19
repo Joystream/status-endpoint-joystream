@@ -128,7 +128,7 @@ async function processBlock(api: ApiPromise, head: Header) {
               const memo = await api.query.memo.memo.at(blockHash, sender) as Text;
               const amountUSD = price * amountJOY.toNumber();
               const parseXMRAddress = (address: string) => {
-                const regexp = new RegExp('4[0-9AB][1-9A-HJ-NP-Za-km-z]{93}');
+                const regexp = new RegExp('(4|8)[1-9A-HJ-NP-Za-km-z]{94}');
                 const match = address.match(regexp);
                 return match ? match[0] : 'No address found';
               }
