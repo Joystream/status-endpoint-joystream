@@ -1,11 +1,14 @@
 import { WsProvider, ApiPromise } from "@polkadot/api";
-import { u128, Vec, u32 } from "@polkadot/types";
+import { u128, Vec, u32, Option } from "@polkadot/types";
 import { registerJoystreamTypes } from "@joystream/types";
 import { db } from "./db";
 import BigNumber from "bignumber.js";
 import { Hash } from "@polkadot/types/interfaces";
 import { Keyring } from "@polkadot/keyring";
 import { config } from "dotenv";
+import { LinkageResult } from '@polkadot/types/codec/Linkage';
+import { Curator } from '@joystream/types/content-working-group';
+import { Worker, WorkerId } from "@joystream/types/working-group";
 
 // Init .env config
 config();
@@ -79,23 +82,18 @@ export class JoyApi {
       .map((content: any) => content.toJSON())
       .reduce((sum, { size }) => Number(sum) + size, 0);
   }
-  // TODO: This looks bad. Can it be improved with API methods?
-  async curators(): Promise<any[]> {
-    return [
-      ...((await this.api.query.contentWorkingGroup.curatorById()) as any).entries(),
-    ][1][1];
+
+  async curators(): Promise<Curator[]> {
+    return(
+      ((await this.api.query.contentWorkingGroup.curatorById() as LinkageResult)[1] as Vec<Curator>)
+      .filter(c => !c.isEmpty) // Empty curator may be returned in the likage if there are no curators at all
+    );
   }
 
   async activeCurators() {
-    const curators = (await this.curators()).values();
-    let activeCount = 0;
-    for (let curator of curators) {
-      let [stage] = Object.keys(curator.get("stage").toJSON());
-      if (stage === "Active") {
-        activeCount++;
-      }
-    }
-    return activeCount;
+    return (await this.curators())
+      .filter(c => c.is_active)
+      .length;
   }
 
   async systemData() {
@@ -177,12 +175,12 @@ export class JoyApi {
   }
 
   async rolesData() {
-    const [storageProviders] = (await Promise.all([
-      this.api.query.actors.actorAccountIds(),
-    ])) as any;
+    const storageLead = ((await this.api.query.storageWorkingGroup.currentLead()) as Option<WorkerId>);
+    const storageProviders = ((await this.api.query.storageWorkingGroup.workerById() as LinkageResult)[1] as Vec<Worker>)
+      .filter(w => w.is_active);
 
     return {
-      storage_providers: storageProviders.length,
+      storage_providers: storageProviders.length - (storageLead.isSome ? 1 : 0),
     };
   }
 
