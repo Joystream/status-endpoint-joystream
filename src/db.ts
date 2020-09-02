@@ -7,8 +7,8 @@ type Exchange = {
   senderMemo: string;
   xmrAddress: string;
   amount: number;
-  fees: number;
   date: Date;
+  logTime: Date;
   blockHeight: number;
   price: number;
   amountUSD: number;
@@ -16,33 +16,35 @@ type Exchange = {
 
 type BlockProcessingError = {
   blockNumber: number;
+  logTime: Date;
   reason?: string;
 };
 
 type Burn = {
   amount: number;
-  tokensRecievedAtBlock: number;
-  finalStatus: string;
-  finalizedBlockHash?: string;
+  blockHeight: number;
+  date: Date;
+  logTime: Date;
 };
 
 type BlockProcessingWarning = {
   blockNumber: number;
+  logTime: Date;
   message: string;
 };
 
 type Schema = {
-  exchanges: Exchange[];
-  sizeDollarPool: number;
-  lastBlockProcessed: number;
-  replenishAmount: number;
-  tokensBurned: number;
-  errors: BlockProcessingError[];
-  warnings: BlockProcessingWarning[];
-  burns: Burn[];
+  exchanges?: Exchange[];
+  sizeDollarPool?: number;
+  lastBlockProcessed?: number;
+  replenishAmount?: number;
+  tokensBurned?: number;
+  errors?: BlockProcessingError[];
+  warnings?: BlockProcessingWarning[];
+  burns?: Burn[];
 };
 
 const adapter = new FileAsync<Schema>("exchanges.json");
 const db = low(adapter);
 
-export { db, Exchange, BlockProcessingError, BlockProcessingWarning, Burn };
+export { db, Exchange, BlockProcessingError, BlockProcessingWarning, Burn, Schema };

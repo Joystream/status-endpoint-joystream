@@ -61,7 +61,10 @@
     "declarationDir": "lib" /* Output directory for generated declaration files. */,
     "outDir": "lib",
     "baseUrl": ".",
-    "paths": {},
+    "paths": {
+      "@polkadot/types/augment": ["./node_modules/@joystream/types/augment/augment-types.ts"],
+      "@polkadot/api/augment": ["./node_modules/@joystream/types//augment/augment-api.ts"]
+    },
     "typeRoots": [
       "./node_modules/@polkadot/ts",
       "./node_modules/@types"

@@ -1,14 +1,12 @@
 import { WsProvider, ApiPromise } from "@polkadot/api";
-import { u128, Vec, u32, Option } from "@polkadot/types";
-import { registerJoystreamTypes } from "@joystream/types";
-import { db } from "./db";
-import BigNumber from "bignumber.js";
+import { Option } from "@polkadot/types";
+import { types } from "@joystream/types";
+import { db, Schema } from "./db";
 import { Hash } from "@polkadot/types/interfaces";
 import { Keyring } from "@polkadot/keyring";
 import { config } from "dotenv";
-import { LinkageResult } from '@polkadot/types/codec/Linkage';
-import { Curator } from '@joystream/types/content-working-group';
-import { Worker, WorkerId } from "@joystream/types/working-group";
+import { DataObject } from "@joystream/types/media";
+import BN from "bn.js";
 
 // Init .env config
 config();
@@ -35,8 +33,7 @@ export class JoyApi {
       endpoint || process.env.PROVIDER || "ws://127.0.0.1:9944";
     this.endpoint = wsEndpoint;
     this.isReady = (async () => {
-      registerJoystreamTypes();
-      const api = await new ApiPromise({ provider: new WsProvider(wsEndpoint) })
+      const api = await new ApiPromise({ provider: new WsProvider(wsEndpoint), types })
         .isReady;
       return api;
     })();
@@ -54,45 +51,32 @@ export class JoyApi {
         ? await this.api.query.balances.totalIssuance()
         : await this.api.query.balances.totalIssuance.at(blockHash);
 
-    return issuance as u128;
-  }
-
-  async IssuanceMinusBurned(blockHash?: Hash) {
-    const issuance = await this.totalIssuance(blockHash);
-    const burnAddr = BURN_ADDRESS;
-    const burned =
-      blockHash === undefined
-        ? await this.api.query.balances.freeBalance(burnAddr)
-        : await this.api.query.balances.freeBalance.at(blockHash, burnAddr);
-
-    return issuance.sub(burned as u128);
+    return issuance.toNumber();
   }
 
   async contentDirectorySize() {
-    let contentIds = (await this.api.query.dataDirectory.knownContentIds()) as Vec<
-      u32
-    >;
+    const contentIds = await this.api.query.dataDirectory.knownContentIds();
     return (
       await Promise.all(
         contentIds.map((id) =>
-          this.api.query.dataDirectory.dataObjectByContentId(id)
+          // Explicitly use "codec type" here, because content.size is not available in the auto-generated interface,
+          // as it interferes with already existing Struct.size
+          this.api.query.dataDirectory.dataObjectByContentId<Option<DataObject>>(id)
         )
       )
     )
-      .map((content: any) => content.toJSON())
-      .reduce((sum, { size }) => Number(sum) + size, 0);
+      .map(dataObjOpt => dataObjOpt.unwrapOr(undefined)?.getField('size').toNumber() || 0)
+      .reduce((sum, dataObjSize) => Number(sum) + dataObjSize, 0);
   }
 
-  async curators(): Promise<Curator[]> {
-    return(
-      ((await this.api.query.contentWorkingGroup.curatorById() as LinkageResult)[1] as Vec<Curator>)
-      .filter(c => !c.isEmpty) // Empty curator may be returned in the likage if there are no curators at all
-    );
+  async curators() {
+    return (await this.api.query.contentWorkingGroup.curatorById.entries())
+      .map(([storageKey, curator]) => curator);
   }
 
   async activeCurators() {
     return (await this.curators())
-      .filter(c => c.is_active)
+      .filter(c => c.stage.isActive)
       .length;
   }
 
@@ -134,7 +118,7 @@ export class JoyApi {
   }
 
   async councilData() {
-    const [councilMembers, electionStage]: [any, any] = await Promise.all([
+    const [councilMembers, electionStage] = await Promise.all([
       this.api.query.council.activeCouncil(),
       this.api.query.councilElection.stage(),
     ]);
@@ -148,59 +132,51 @@ export class JoyApi {
   }
 
   async validatorsData() {
-    const validators = (await this.api.query.session.validators()) as Vec<any>;
-
-    let balances = (await Promise.all(
-      validators.map((validator) =>
-        this.api.query.balances.freeBalance(validator)
-      )
-    )) as u128[];
-    let total_stake = balances.reduce(
-      (sum: any, x: any) => sum.add(x),
-      new u128(0)
-    );
+    const validators = await this.api.query.session.validators();
+    const era = await this.api.query.staking.currentEra();
+    const totalStake = era.isSome ?
+      await this.api.query.staking.erasTotalStake(era.unwrap())
+      : new BN(0);
 
     return {
       count: validators.length,
       validators: validators.toJSON(),
-      total_stake: total_stake.toNumber(),
+      total_stake: totalStake.toNumber(),
     };
   }
 
   async membershipData() {
-    const membersCreated = await this.api.query.members.membersCreated();
+    // Member ids start from 0, so nextMemberId === number of members created
+    const membersCreated = await this.api.query.members.nextMemberId();
     return {
-      platform_members: membersCreated.toJSON(),
+      platform_members: membersCreated.toNumber(),
     };
   }
 
   async rolesData() {
-    const storageLead = ((await this.api.query.storageWorkingGroup.currentLead()) as Option<WorkerId>);
-    const storageProviders = ((await this.api.query.storageWorkingGroup.workerById() as LinkageResult)[1] as Vec<Worker>)
-      .filter(w => w.is_active);
+    const storageWorkersCount = (await this.api.query.storageWorkingGroup.workerById.keys()).length
 
     return {
-      storage_providers: storageProviders.length - (storageLead.isSome ? 1 : 0),
+      // This includes the storage lead!
+      storage_providers: storageWorkersCount
     };
   }
 
   async forumData() {
-    const [posts, threads] = (await Promise.all([
+    const [nextPostId, nextThreadId] = (await Promise.all([
       this.api.query.forum.nextPostId(),
       this.api.query.forum.nextThreadId(),
-    ])) as [any, any];
+    ]));
 
     return {
-      posts: posts - 1,
-      threads: threads - 1,
+      posts: nextPostId.toNumber() - 1,
+      threads: nextThreadId.toNumber() - 1,
     };
   }
 
   async mediaData() {
-    // Retrieve media data (will add size of content later)
-    const [contentDirectory] = (await Promise.all([
-      this.api.query.dataDirectory.knownContentIds(),
-    ])) as any;
+    // Retrieve media data
+    const contentDirectory = await this.api.query.dataDirectory.knownContentIds();
 
     const size = await this.contentDirectorySize();
     const activeCurators = await this.activeCurators();
@@ -212,13 +188,8 @@ export class JoyApi {
     };
   }
 
-  async burned() {
-    let { tokensBurned } = (await db).valueOf();
-    return tokensBurned;
-  }
-
   async dollarPool() {
-    let { sizeDollarPool, replenishAmount } = (await db).valueOf() as any;
+    const { sizeDollarPool = 0, replenishAmount = 0 } = (await db).valueOf() as Schema;
 
     return {
       size: sizeDollarPool,
@@ -227,20 +198,34 @@ export class JoyApi {
   }
 
   async price(blockHash?: Hash, dollarPoolSize?: number) {
-    let supply = new BigNumber(
-      (await this.IssuanceMinusBurned(blockHash)).toNumber()
-    );
-    let size = new BigNumber(
-      dollarPoolSize !== undefined
-        ? dollarPoolSize
-        : (await this.dollarPool()).size
-    );
+    const supply = await this.totalIssuance(blockHash);
+    const pool = dollarPoolSize !== undefined
+      ? dollarPoolSize
+      : (await this.dollarPool()).size;
 
-    return size.div(supply).toFixed();
+    return this.calcPrice(supply, pool);
+  }
+
+  calcPrice(totalIssuance: number, dollarPoolSize: number) {
+    return dollarPoolSize / totalIssuance;
   }
 
   async exchanges() {
-    let { exchanges } = (await db).valueOf() as any;
+    const { exchanges = [] } = (await db).valueOf() as Schema;
     return exchanges;
+  }
+
+  async burns() {
+    const { burns = [] } = (await db).valueOf() as Schema;
+    return burns;
+  }
+
+  async burnAddressBalance() {
+    const burnAddrInfo = await this.api.query.system.account(BURN_ADDRESS);
+    return burnAddrInfo.data.free.toNumber(); // Free balance
+  }
+
+  async executedBurnsAmount() {
+    return (await this.burns()).reduce((sum, burn) => sum += burn.amount, 0);
   }
 }
