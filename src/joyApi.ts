@@ -7,6 +7,7 @@ import { Keyring } from "@polkadot/keyring";
 import { config } from "dotenv";
 import { DataObject } from "@joystream/types/media";
 import BN from "bn.js";
+import { log } from './debug';
 
 // Init .env config
 config();
@@ -21,7 +22,7 @@ keyring.addFromMnemonic(burnSeed);
 export const BURN_PAIR = keyring.getPairs()[0];
 export const BURN_ADDRESS = BURN_PAIR.address;
 
-console.log("BURN ADDRESS:", BURN_ADDRESS);
+log("BURN ADDRESS:", BURN_ADDRESS);
 
 export class JoyApi {
   endpoint: string;

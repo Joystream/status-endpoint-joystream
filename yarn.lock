@@ -11,10 +11,10 @@
 
 "@joystream/types@./joystream-types-0.13.0.tgz":
   version "0.13.0"
-  resolved "./joystream-types-0.13.0.tgz#89ee650aa5fbf3bd0f27cb6bcd488a1989092a89"
+  resolved "./joystream-types-0.13.0.tgz#01de1794b7bbcc334d53f606df40f87590823db6"
   dependencies:
     "@polkadot/api" "1.26.1"
-    "@polkadot/keyring" "3.0.1"
+    "@polkadot/keyring" "^3.0.1"
     "@polkadot/types" "1.26.1"
     "@types/lodash" "^4.14.157"
     "@types/vfile" "^4.0.0"
@@ -150,15 +150,6 @@
     eventemitter3 "^4.0.4"
     rxjs "^6.6.0"
 
-"@polkadot/keyring@3.0.1":
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/@polkadot/keyring/-/keyring-3.0.1.tgz#3944079697c15b2af81e1f57b1c4aeab703a4fef"
-  integrity sha512-vAHSBnisiDYHsBbEzAgIpuwQp3vIDN2uWQ/1wAE2BrKzXCBQM7RrF3LRcLFySk0xzQoDs7AP1TlPoakxJ/C/Qw==
-  dependencies:
-    "@babel/runtime" "^7.10.5"
-    "@polkadot/util" "3.0.1"
-    "@polkadot/util-crypto" "3.0.1"
-
 "@polkadot/keyring@^3.0.1":
   version "3.4.1"
   resolved "https://registry.yarnpkg.com/@polkadot/keyring/-/keyring-3.4.1.tgz#9898966373b0f1e49a53cf7a21660be6b964e130"
@@ -239,25 +230,6 @@
     memoizee "^0.4.14"
     rxjs "^6.6.0"
 
-"@polkadot/util-crypto@3.0.1":
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/@polkadot/util-crypto/-/util-crypto-3.0.1.tgz#800746a39a00e5aa7dc7b901bbde0f5e3e0be60b"
-  integrity sha512-4G5kzNfqa/nQGuTtoFsy3DESApc8BTgTHbAvLwSkxzM3j8YsvC5ayJ3AFYvM2UT2PDwXmrFx4cwRnYsYZvhC9A==
-  dependencies:
-    "@babel/runtime" "^7.10.5"
-    "@polkadot/util" "3.0.1"
-    "@polkadot/wasm-crypto" "^1.2.1"
-    base-x "^3.0.8"
-    bip39 "^3.0.2"
-    blakejs "^1.1.0"
-    bn.js "^5.1.2"
-    elliptic "^6.5.3"
-    js-sha3 "^0.8.0"
-    pbkdf2 "^3.1.1"
-    scryptsy "^2.1.0"
-    tweetnacl "^1.0.3"
-    xxhashjs "^0.2.2"
-
 "@polkadot/util-crypto@3.4.1", "@polkadot/util-crypto@^3.0.1":
   version "3.4.1"
   resolved "https://registry.yarnpkg.com/@polkadot/util-crypto/-/util-crypto-3.4.1.tgz#f8a18f36221cdae772ab6f499779302f3397eb35"
@@ -277,18 +249,6 @@
     tweetnacl "^1.0.3"
     xxhashjs "^0.2.2"
 
-"@polkadot/util@3.0.1":
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/@polkadot/util/-/util-3.0.1.tgz#f7ed9d81d745136aa6d6ad57277ee05c88f32784"
-  integrity sha512-WvH+seT03YQ+6dWJqo285uYHsDvMEGzgYQILEclzQo8xExeCYLIX6GptpW0vGycVxdZmmCdDmUFbcQSRsFawYA==
-  dependencies:
-    "@babel/runtime" "^7.10.5"
-    "@types/bn.js" "^4.11.6"
-    bn.js "^5.1.2"
-    camelcase "^5.3.1"
-    chalk "^4.1.0"
-    ip-regex "^4.1.0"
-
 "@polkadot/util@3.4.1", "@polkadot/util@^3.0.1":
   version "3.4.1"
   resolved "https://registry.yarnpkg.com/@polkadot/util/-/util-3.4.1.tgz#8676dd49e9c2d2332dcb72239287e37f0ab2c60a"
@@ -301,7 +261,7 @@
     chalk "^4.1.0"
     ip-regex "^4.1.0"
 
-"@polkadot/wasm-crypto@^1.2.1", "@polkadot/wasm-crypto@^1.4.1":
+"@polkadot/wasm-crypto@^1.4.1":
   version "1.4.1"
   resolved "https://registry.yarnpkg.com/@polkadot/wasm-crypto/-/wasm-crypto-1.4.1.tgz#0a053d0c2587da30fb5313cef81f8d9a52029c68"
   integrity sha512-GPBCh8YvQmA5bobI4rqRkUhrEHkEWU1+lcJVPbZYsa7jiHFaZpzCLrGQfiqW/vtbU1aBS2wmJ0x1nlt33B9QqQ==
@@ -1883,7 +1843,7 @@ moment-timezone@^0.5.x:
   dependencies:
     moment ">= 2.9.0"
 
-"moment@>= 2.9.0", moment@^2.24.0:
+"moment@>= 2.9.0", moment@^2.24.0, moment@^2.27.0:
   version "2.27.0"
   resolved "https://registry.yarnpkg.com/moment/-/moment-2.27.0.tgz#8bff4e3e26a236220dfe3e36de756b6ebaa0105d"
   integrity sha512-al0MUK7cpIcglMv3YF13qSgdAIqxHTO7brRtaz3DlSULbqfazqkc5kEjNrLDOM7fsjshoFIihnU8snrP7zUvhQ==

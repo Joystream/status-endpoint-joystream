@@ -7,6 +7,7 @@ import locks from "locks";
 import Block from "@polkadot/types/generic/Block";
 import { LookupSource } from "@joystream/types/augment/all";
 import Extrinsic from "@polkadot/types/extrinsic/Extrinsic";
+import { log, error } from './debug';
 
 const processingLock = locks.createMutex();
 const burningLock = locks.createMutex();
@@ -36,9 +37,9 @@ async function critialExit(faultBlockNumber: number, reason?: string) {
     .set('lastBlockProcessed', faultBlockNumber)
     .write();
 
-  console.log('Critical error, extiting...');
-  console.log('Faulty block:', faultBlockNumber);
-  console.log('Reason:', reason);
+  log('Critical error, extiting...');
+  log('Faulty block:', faultBlockNumber);
+  log('Reason:', reason);
   process.exit();
 }
 
@@ -51,7 +52,7 @@ function autoburn(api: ApiPromise) {
       burningLock.unlock();
       return;
     }
-    console.log(`Executing automatic burn of ${ pendingBurnAmount } tokens`);
+    log(`Executing automatic burn of ${ pendingBurnAmount } tokens`);
     try {
       await api.tx.balances
         .transfer(BURN_ADDRESS, 0)
@@ -59,17 +60,17 @@ function autoburn(api: ApiPromise) {
         .signAndSend(BURN_PAIR, { tip: pendingBurnAmount }, async result => {
           if (result.status.isInBlock) {
             const blockHash = result.status.asInBlock.toHex();
-            console.log(`Automatic burn of ${ pendingBurnAmount } included in block: ${blockHash}`);
+            log(`Automatic burn of ${ pendingBurnAmount } included in block: ${blockHash}`);
             burningLock.unlock();
           }
           if (result.isError) {
             const statusType = result.status.type.toString() || 'Error';
-            console.error(`Automatic burn of ${ pendingBurnAmount } tokens extrinsic failed with status: ${statusType}`);
+            error(`Automatic burn of ${ pendingBurnAmount } tokens extrinsic failed with status: ${statusType}`);
             burningLock.unlock();
           }
         });
       } catch(e) {
-        console.error(`Automatic burn of ${ pendingBurnAmount } tokens failed with: `, e);
+        error(`Automatic burn of ${ pendingBurnAmount } tokens failed with: `, e);
         burningLock.unlock();
       }
   });
@@ -122,7 +123,8 @@ async function processBlock(api: ApiPromise, block: Block) {
           return;
         }
 
-        console.log(`\nProcessing block #${ blockNumber }...`);
+        console.log('\n');
+        log(`Processing block #${ blockNumber }...`);
 
         const blockHash = header.hash;
         const events = await api.query.system.events.at(blockHash) as Vec<EventRecord>;
@@ -180,7 +182,7 @@ async function processBlock(api: ApiPromise, block: Block) {
           sumDollarsInBlock += exchange.amountUSD;
           sumTokensInBlock  += exchange.amount;
 
-          console.log('Exchange handled!', exchange);
+          log('Exchange handled!', exchange);
         }
 
         const handleBurn = async (amount: number) => {
@@ -196,7 +198,7 @@ async function processBlock(api: ApiPromise, block: Block) {
           .push(burn)
           .write();
 
-          console.log('Burn handled!', burn);
+          log('Burn handled!', burn);
         }
 
         // Processing extrinsics in the finalized block
@@ -228,11 +230,11 @@ async function processBlock(api: ApiPromise, block: Block) {
           .set('lastBlockProcessed', blockNumber)
           .write();
 
-        console.log('Issuance at this block:', issuance);
-        console.log('Token price at this block:', price);
-        console.log('Exchanged tokens in this block:', sumTokensInBlock);
-        console.log('Exchanged tokens value in this block:', `$${sumDollarsInBlock}`);
-        console.log('Dollar pool after processing this block:', currentDollarPool - sumDollarsInBlock);
+        log('Issuance at this block:', issuance);
+        log('Token price at this block:', price);
+        log('Exchanged tokens in this block:', sumTokensInBlock);
+        log('Exchanged tokens value in this block:', `$${sumDollarsInBlock}`);
+        log('Dollar pool after processing this block:', currentDollarPool - sumDollarsInBlock);
 
         autoburn(api);
 

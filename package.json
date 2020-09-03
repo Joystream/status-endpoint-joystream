@@ -23,6 +23,7 @@
     "express": "^4.17.1",
     "locks": "^0.2.2",
     "lowdb": "^1.0.0",
+    "moment": "^2.27.0",
     "pm2": "^4.4.0"
   },
   "devDependencies": {
