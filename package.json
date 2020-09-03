@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/app.ts",
     "build": "tsc --build tsconfig.json",
-    "start": "yarn run build && pm2 start ./lib/app.js -o out.log -e err.log"
+    "start": "yarn run build && pm2 start ./lib/app.js -o out.log -e err.log",
+    "increasePool": "ts-node ./src/commands/schedulePoolIncrease.ts",
+    "setExchangeStatus": "ts-node ./src/commands/setExchangeStatus.ts"
   },
   "dependencies": {
     "@joystream/types": "./joystream-types-0.13.0.tgz",
@@ -21,6 +23,7 @@
     "cors": "^2.8.5",
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
+    "inquirer": "^7.3.3",
     "locks": "^0.2.2",
     "lowdb": "^1.0.0",
     "moment": "^2.27.0",
@@ -31,6 +34,7 @@
     "@types/cors": "^2.8.6",
     "@types/express": "^4.17.6",
     "@types/lowdb": "^1.0.9",
+    "@types/inquirer": "^7.3.1",
     "nodemon": "^2.0.3",
     "ts-node": "^8.10.1",
     "typescript": "^3.9.7"

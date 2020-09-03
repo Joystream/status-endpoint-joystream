@@ -1,7 +1,7 @@
 import { JoyApi, BURN_PAIR, BURN_ADDRESS } from "./joyApi";
 import { Vec, Compact } from '@polkadot/types/codec';
 import { EventRecord, Balance } from '@polkadot/types/interfaces';
-import { db, Exchange, BlockProcessingError, BlockProcessingWarning, Burn } from './db';
+import { db, refreshDb, Exchange, BlockProcessingError, BlockProcessingWarning, Burn } from './db';
 import { ApiPromise } from "@polkadot/api";
 import locks from "locks";
 import Block from "@polkadot/types/generic/Block";
@@ -114,6 +114,10 @@ async function processBlock(api: ApiPromise, block: Block) {
       );
       // Set lock to avoid processing multiple blocks at the same time
       processingLock.lock(async () => {
+        console.log('\n');
+        // Refresh db state before processing each new block
+        await refreshDb(blockNumber);
+
         const { lastBlockProcessed = FIRST_BLOCK_TO_PROCESS - 1 } = (await db).valueOf();
 
         // Ignore blocks that are (or should be) already processed
@@ -123,7 +127,6 @@ async function processBlock(api: ApiPromise, block: Block) {
           return;
         }
 
-        console.log('\n');
         log(`Processing block #${ blockNumber }...`);
 
         const blockHash = header.hash;
@@ -170,7 +173,8 @@ async function processBlock(api: ApiPromise, block: Block) {
             blockHeight: blockNumber,
             price: price,
             amountUSD: amountUSD,
-            logTime: new Date()
+            logTime: new Date(),
+            status: 'PENDING'
           };
 
           await (await db)
