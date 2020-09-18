@@ -4,6 +4,7 @@ import { confirm } from './utils';
 async function main() {
   const amount = parseInt(process.argv[2]);
   const blockHeight = parseInt(process.argv[3]) || 0;
+  const reason = process.argv[4] || '';
 
   if (!amount) {
     console.warn('No amount provided!');
@@ -18,7 +19,7 @@ async function main() {
     (await db)
       .defaults({ scheduledPoolIncreases: [] as ScheduledPoolIncrease[] })
       .get('scheduledPoolIncreases')
-      .push({ amount, blockHeight })
+      .push({ amount, blockHeight, reason })
       .write();
     console.log('Dollar pool increase scheduled!');
   }

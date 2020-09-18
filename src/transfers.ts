@@ -1,7 +1,7 @@
 import { JoyApi, BURN_PAIR, BURN_ADDRESS } from "./joyApi";
 import { Vec, Compact } from '@polkadot/types/codec';
 import { EventRecord, Balance } from '@polkadot/types/interfaces';
-import { db, refreshDb, Exchange, BlockProcessingError, BlockProcessingWarning, Burn } from './db';
+import { db, refreshDb, Exchange, BlockProcessingError, BlockProcessingWarning, Burn, PoolChange } from './db';
 import { ApiPromise } from "@polkadot/api";
 import locks from "locks";
 import Block from "@polkadot/types/generic/Block";
@@ -115,8 +115,6 @@ async function processBlock(api: ApiPromise, block: Block) {
       // Set lock to avoid processing multiple blocks at the same time
       processingLock.lock(async () => {
         console.log('\n');
-        // Refresh db state before processing each new block
-        await refreshDb(blockNumber);
 
         const { lastBlockProcessed = FIRST_BLOCK_TO_PROCESS - 1 } = (await db).valueOf();
 
@@ -130,6 +128,11 @@ async function processBlock(api: ApiPromise, block: Block) {
         log(`Processing block #${ blockNumber }...`);
 
         const blockHash = header.hash;
+        const blockTimestamp = await api.query.timestamp.now.at(blockHash);
+        const issuance = await joy.totalIssuance(blockHash);
+        // Refresh db state before processing each new block
+        await refreshDb(blockNumber, new Date(blockTimestamp.toNumber()), issuance);
+
         const events = await api.query.system.events.at(blockHash) as Vec<EventRecord>;
         const bestFinalized = (await api.derive.chain.bestNumberFinalized()).toNumber();
         const { sizeDollarPool: currentDollarPool = 0 } = (await db).valueOf();
@@ -148,9 +151,7 @@ async function processBlock(api: ApiPromise, block: Block) {
             .write();
         }
 
-        const blockTimestamp = await api.query.timestamp.now.at(blockHash);
         // To calcultate the price we use parent hash (so all the transactions that happend in this block have no effect on it)
-        const issuance = await joy.totalIssuance(blockHash);
         const price = joy.calcPrice(issuance, currentDollarPool);
         
         // Handlers
@@ -228,17 +229,37 @@ async function processBlock(api: ApiPromise, block: Block) {
           }
         }
 
+        const dollarPoolAfter = currentDollarPool - sumDollarsInBlock;
         // We update the dollar pool after processing all transactions in this block
         await (await db)
-          .set('sizeDollarPool', currentDollarPool - sumDollarsInBlock)
+          .set('sizeDollarPool', dollarPoolAfter)
           .set('lastBlockProcessed', blockNumber)
           .write();
+
+        if (sumDollarsInBlock) {
+          // Handle pool change
+          const poolChange: PoolChange = {
+            blockHeight: blockNumber,
+            blockTime: new Date(blockTimestamp.toNumber()),
+            change: -sumDollarsInBlock,
+            reason: `Exchange(s) totalling ${sumTokensInBlock} tokens`,
+            issuance,
+            valueAfter: dollarPoolAfter,
+            rateAfter: dollarPoolAfter / issuance
+          };
+
+          await (await db)
+            .defaults({ poolChangeHistory: [] as PoolChange[] })
+            .get('poolChangeHistory', [])
+            .push(poolChange)
+            .write();
+        }
 
         log('Issuance at this block:', issuance);
         log('Token price at this block:', price);
         log('Exchanged tokens in this block:', sumTokensInBlock);
         log('Exchanged tokens value in this block:', `$${sumDollarsInBlock}`);
-        log('Dollar pool after processing this block:', currentDollarPool - sumDollarsInBlock);
+        log('Dollar pool after processing this block:', dollarPoolAfter);
 
         autoburn(api);
 
