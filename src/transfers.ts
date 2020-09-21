@@ -1,11 +1,13 @@
-//import { db } from "./testdb";
 import { JoyApi, BURN_PAIR, BURN_ADDRESS } from "./joyApi";
-import { Text } from "@polkadot/types";
-import { Vec } from '@polkadot/types/codec';
-import { EventRecord, Moment, AccountId, Balance, Header } from '@polkadot/types/interfaces';
-import { db, Exchange, BlockProcessingError, BlockProcessingWarning, Burn } from './db';
+import { Vec, Compact } from '@polkadot/types/codec';
+import { EventRecord, Balance } from '@polkadot/types/interfaces';
+import { db, refreshDb, Exchange, BlockProcessingError, BlockProcessingWarning, Burn, PoolChange } from './db';
 import { ApiPromise } from "@polkadot/api";
 import locks from "locks";
+import Block from "@polkadot/types/generic/Block";
+import { LookupSource } from "@joystream/types/augment/all";
+import Extrinsic from "@polkadot/types/extrinsic/Extrinsic";
+import { log, error } from './debug';
 
 const processingLock = locks.createMutex();
 const burningLock = locks.createMutex();
@@ -24,58 +26,85 @@ const PROBABILISTIC_FINALITY_DEPTH = 10;
 // If for some reason we cannot process given block and all the attempts to do so fail,
 // we log the fault block number, update the database and exit the process to avoid inconsistencies. 
 async function critialExit(faultBlockNumber: number, reason?: string) {
+  const logTime = new Date();
   await (await db)
     .defaults({ errors: [] as BlockProcessingError[] })
     .get('errors')
-    .push({ blockNumber: faultBlockNumber, reason })
+    .push({ blockNumber: faultBlockNumber, reason, logTime })
     .write();
 
   await (await db)
     .set('lastBlockProcessed', faultBlockNumber)
     .write();
 
-  console.log('Critical error, extiting...');
-  console.log('Faulty block:', faultBlockNumber);
-  console.log('Reason:', reason);
+  log('Critical error, extiting...');
+  log('Faulty block:', faultBlockNumber);
+  log('Reason:', reason);
   process.exit();
 }
 
 // Exectue the actual tokens burn
-function executeBurn(api: ApiPromise, amount: number, blockNumber: number) {
+function autoburn(api: ApiPromise) {
   // We need to use the lock to prevent executing multiple burns in the same block, since it causes transaction priority errors
   burningLock.lock(async () => {
-    console.log(`Executing the actual burn of ${ amount } tokens (recieved in block #${ blockNumber })...`);
+    const pendingBurnAmount = await joy.burnAddressBalance();
+    if (pendingBurnAmount === 0) {
+      burningLock.unlock();
+      return;
+    }
+    log(`Executing automatic burn of ${ pendingBurnAmount } tokens`);
     try {
       await api.tx.balances
         .transfer(BURN_ADDRESS, 0)
-        .signAndSend(BURN_PAIR, { tip: amount - 1 }, async result => {
-          let finished = result.status.isFinalized || result.isError;
-          if (finished) {
-            let finalStatus = result.status.type.toString() || 'Error', finalizedBlockHash: string | undefined;
-            if (result.status.isFinalized) {
-              finalizedBlockHash = result.status.asFinalized.toHex();
-            }
-            await (await db)
-              .defaults({ burns: [] as Burn[] })
-              .get('burns')
-              .push({ amount, tokensRecievedAtBlock: blockNumber, finalizedBlockHash, finalStatus })
-              .write();
+        // We assume that required transaction fee is 0 (which is currently true)
+        .signAndSend(BURN_PAIR, { tip: pendingBurnAmount }, async result => {
+          if (result.status.isInBlock) {
+            const blockHash = result.status.asInBlock.toHex();
+            log(`Automatic burn of ${ pendingBurnAmount } included in block: ${blockHash}`);
+            burningLock.unlock();
+          }
+          if (result.isError) {
+            const statusType = result.status.type.toString() || 'Error';
+            error(`Automatic burn of ${ pendingBurnAmount } tokens extrinsic failed with status: ${statusType}`);
             burningLock.unlock();
           }
         });
       } catch(e) {
-        let finalStatus = 'Exception';
-        await (await db)
-          .defaults({ burns: [] as Burn[] })
-          .get('burns')
-          .push({ amount, tokensRecievedAtBlock: blockNumber, finalStatus })
-          .write();
+        error(`Automatic burn of ${ pendingBurnAmount } tokens failed with: `, e);
         burningLock.unlock();
       }
   });
 }
 
-async function processBlock(api: ApiPromise, head: Header) {
+type TransferExtrinsicData = {
+  senderAddress: string;
+  recipientAddress: string;
+  amount: number;
+  tip: number;
+}
+
+function getTransferExtrinsicData(extrinsic: Extrinsic): TransferExtrinsicData {
+  return {
+    senderAddress: extrinsic.signer.toString(),
+    recipientAddress: (extrinsic.args[0] as LookupSource).toString(),
+    amount: (extrinsic.args[1] as Compact<Balance>).toNumber(),
+    tip: extrinsic.tip.toNumber()
+  }
+}
+
+function wasExtrinsicSuccesful(events: EventRecord[], index: number) {
+  return events.some(({ event, phase }) => (
+    event.section === 'system'
+    && event.method === 'ExtrinsicSuccess'
+    && phase.isApplyExtrinsic
+    && phase.asApplyExtrinsic.toNumber() === index
+  ))
+}
+
+async function processBlock(api: ApiPromise, block: Block) {
+  const { header, extrinsics } = block;
+  const blockNumber = header.number.toNumber();
+
   try {
     await new Promise(async (resolve, reject) => {
       // Set block processing timeout to avoid infinite lock
@@ -85,7 +114,8 @@ async function processBlock(api: ApiPromise, head: Header) {
       );
       // Set lock to avoid processing multiple blocks at the same time
       processingLock.lock(async () => {
-        const blockNumber = head.number.toNumber();
+        console.log('\n');
+
         const { lastBlockProcessed = FIRST_BLOCK_TO_PROCESS - 1 } = (await db).valueOf();
 
         // Ignore blocks that are (or should be) already processed
@@ -95,12 +125,17 @@ async function processBlock(api: ApiPromise, head: Header) {
           return;
         }
 
-        console.log(`\nProcessing block #${ blockNumber }...`);
+        log(`Processing block #${ blockNumber }...`);
 
-        const blockHash = head.hash;
+        const blockHash = header.hash;
+        const blockTimestamp = await api.query.timestamp.now.at(blockHash);
+        const issuance = await joy.totalIssuance(blockHash);
+        // Refresh db state before processing each new block
+        await refreshDb(blockNumber, new Date(blockTimestamp.toNumber()), issuance);
+
         const events = await api.query.system.events.at(blockHash) as Vec<EventRecord>;
         const bestFinalized = (await api.derive.chain.bestNumberFinalized()).toNumber();
-        const { sizeDollarPool: currentDollarPool = 0, tokensBurned: currentTokensBurned = 0 } = (await db).valueOf();
+        const { sizeDollarPool: currentDollarPool = 0 } = (await db).valueOf();
         let sumDollarsInBlock = 0, sumTokensInBlock = 0;
 
         // Add warning if the block is not yet finalized
@@ -108,74 +143,125 @@ async function processBlock(api: ApiPromise, head: Header) {
           await (await db)
             .defaults({ warnings: [] as BlockProcessingWarning[] })
             .get('warnings')
-            .push({ blockNumber, message: `Processing before finalized! Finalized: ${ bestFinalized }, Processing: ${ blockNumber }` })
+            .push({
+              blockNumber,
+              message: `Processing before finalized! Finalized: ${ bestFinalized }, Processing: ${ blockNumber }`,
+              logTime: new Date()
+            })
             .write();
         }
 
         // To calcultate the price we use parent hash (so all the transactions that happend in this block have no effect on it)
-        const price = parseFloat(await joy.price(head.parentHash, currentDollarPool));
+        const price = joy.calcPrice(issuance, currentDollarPool);
+        
+        // Handlers
+        const handleExchange = async (senderAddress: string, amount: number) => {
+          const memo = await api.query.memo.memo.at(blockHash, senderAddress);
+          const amountUSD = price * amount;
+          const parseXMRAddress = (address: string) => {
+            const regexp = new RegExp('(4|8)[1-9A-HJ-NP-Za-km-z]{94}');
+            const match = address.match(regexp);
+            return match ? match[0] : 'No address found';
+          }
 
-        // Processing all events in the finalized block
-        for (let { event } of events) {
-          if (event.section === 'balances' && event.method === 'Transfer') {
-            const recipient = event.data[1] as AccountId;
-            if (recipient.toString() === BURN_ADDRESS) {
-              // For all events of "Transfer" type with matching recipient...
-              const sender = event.data[0] as AccountId;
-              const amountJOY = event.data[2] as Balance;
-              const feesJOY = event.data[3] as Balance;
-              const timestamp = await api.query.timestamp.now.at(blockHash) as Moment;
-              const memo = await api.query.memo.memo.at(blockHash, sender) as Text;
-              const amountUSD = price * amountJOY.toNumber();
-              const parseXMRAddress = (address: string) => {
-                const regexp = new RegExp('(4|8)[1-9A-HJ-NP-Za-km-z]{94}');
-                const match = address.match(regexp);
-                return match ? match[0] : 'No address found';
-              }
+          const exchange: Exchange = {
+            sender: senderAddress,
+            recipient: BURN_ADDRESS,
+            senderMemo: memo.toString(),
+            xmrAddress: parseXMRAddress(memo.toString()),
+            amount: amount,
+            date: new Date(blockTimestamp.toNumber()),
+            blockHeight: blockNumber,
+            price: price,
+            amountUSD: amountUSD,
+            logTime: new Date(),
+            status: 'PENDING'
+          };
 
-              const exchange: Exchange = {
-                sender: sender.toString(),
-                recipient: recipient.toString(),
-                senderMemo: memo.toString(),
-                xmrAddress: parseXMRAddress(memo.toString()),
-                amount: amountJOY.toNumber(),
-                fees: feesJOY.toNumber(),
-                date: new Date(timestamp.toNumber()),
-                blockHeight: blockNumber,
-                price: price,
-                amountUSD: amountUSD
-              };
+          await (await db)
+            .defaults({ exchanges: [] as Exchange[] })
+            .get('exchanges', [])
+            .push(exchange)
+            .write();
 
-              await (await db)
-                .defaults({ exchanges: [] as Exchange[] })
-                .get('exchanges', [])
-                .push(exchange)
-                .write();
+          sumDollarsInBlock += exchange.amountUSD;
+          sumTokensInBlock  += exchange.amount;
 
-              console.log('Exchange happened!', exchange);
+          log('Exchange handled!', exchange);
+        }
 
-              sumDollarsInBlock += exchange.amountUSD;
-              sumTokensInBlock  += exchange.amount;
-            }
+        const handleBurn = async (amount: number) => {
+          const burn: Burn = {
+            amount,
+            blockHeight: blockNumber,
+            date: new Date(blockTimestamp.toNumber()),
+            logTime: new Date()
+          }
+          await (await db)
+          .defaults({ burns: [] as Burn[] })
+          .get('burns')
+          .push(burn)
+          .write();
+
+          log('Burn handled!', burn);
+        }
+
+        // Processing extrinsics in the finalized block
+        for (const [index, extrinsic] of Object.entries(extrinsics.toArray())) {
+          if (!(extrinsic.method.section === 'balances' && extrinsic.method.method === 'transfer')) {
+            continue;
+          }
+          
+          const txSuccess = wasExtrinsicSuccesful(events.toArray(), parseInt(index));
+          
+          if (!txSuccess) {
+            continue;
+          }
+          
+          const { senderAddress, recipientAddress, amount, tip } = getTransferExtrinsicData(extrinsic);
+          
+          if (recipientAddress === BURN_ADDRESS && amount > 0) {
+            await handleExchange(senderAddress, amount);
+          }
+
+          if (senderAddress === BURN_ADDRESS && tip > 0) {
+            await handleBurn(tip);
           }
         }
 
+        const dollarPoolAfter = currentDollarPool - sumDollarsInBlock;
         // We update the dollar pool after processing all transactions in this block
         await (await db)
-          .set('sizeDollarPool', currentDollarPool - sumDollarsInBlock)
-          .set('tokensBurned', currentTokensBurned + sumTokensInBlock)
+          .set('sizeDollarPool', dollarPoolAfter)
           .set('lastBlockProcessed', blockNumber)
           .write();
 
-        console.log('Tokens in block:', sumTokensInBlock);
-        console.log('Token price:', price);
-        console.log('Dollars in block:', sumDollarsInBlock);
-        console.log('Dollar pool after:', currentDollarPool - sumDollarsInBlock);
-        console.log('Tokens burned after:', currentTokensBurned + sumTokensInBlock);
+        if (sumDollarsInBlock) {
+          // Handle pool change
+          const poolChange: PoolChange = {
+            blockHeight: blockNumber,
+            blockTime: new Date(blockTimestamp.toNumber()),
+            change: -sumDollarsInBlock,
+            reason: `Exchange(s) totalling ${sumTokensInBlock} tokens`,
+            issuance,
+            valueAfter: dollarPoolAfter,
+            rateAfter: dollarPoolAfter / issuance
+          };
 
-        if (sumTokensInBlock) {
-          executeBurn(api, sumTokensInBlock, blockNumber); // No need to await this, otherwise it'll make the entire process very slow
+          await (await db)
+            .defaults({ poolChangeHistory: [] as PoolChange[] })
+            .get('poolChangeHistory', [])
+            .push(poolChange)
+            .write();
         }
+
+        log('Issuance at this block:', issuance);
+        log('Token price at this block:', price);
+        log('Exchanged tokens in this block:', sumTokensInBlock);
+        log('Exchanged tokens value in this block:', `$${sumDollarsInBlock}`);
+        log('Dollar pool after processing this block:', dollarPoolAfter);
+
+        autoburn(api);
 
         processingLock.unlock();
         clearTimeout(processingTimeout);
@@ -183,19 +269,18 @@ async function processBlock(api: ApiPromise, head: Header) {
       });
     });
   } catch (e) {
-    await critialExit(head.number.toNumber(), JSON.stringify(e));
+    await critialExit(blockNumber, JSON.stringify(e));
   }
 }
 
 async function processPastBlocks(api: ApiPromise, from: number, to: number) {
   for (let blockNumber = from; blockNumber <= to; ++blockNumber) {
     const hash = await api.rpc.chain.getBlockHash(blockNumber);
-    const singedBlock = await api.rpc.chain.getBlock(hash);
-    const header = singedBlock.block.header;
+    const { block } = await api.rpc.chain.getBlock(hash);
     try {
-      await processBlock(api, header);
+      await processBlock(api, block);
     } catch (e) {
-      critialExit(header.number.toNumber(), JSON.stringify(e));
+      critialExit(block.header.number.toNumber(), JSON.stringify(e));
     }
   }
 }

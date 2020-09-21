@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { getStatus } from "./get-status";
 import startTransfersMonitor from './transfers';
+import { log } from './debug';
 
 const app = express();
 const port = process.env.PORT || 8081;
@@ -16,5 +17,5 @@ app.get("/", async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`server started at http://localhost:${port}`);
+  log(`server started at http://localhost:${port}`);
 });
