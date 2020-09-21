@@ -64,7 +64,7 @@ type Schema = {
   warnings?: BlockProcessingWarning[];
   burns?: Burn[];
   scheduledPoolIncreases?: ScheduledPoolIncrease[];
-  poolChanges?: PoolChange[];
+  poolChangeHistory?: PoolChange[];
 };
 
 const adapter = new FileAsync<Schema>("exchanges.json");

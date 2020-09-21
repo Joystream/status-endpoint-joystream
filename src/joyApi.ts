@@ -229,4 +229,9 @@ export class JoyApi {
   async executedBurnsAmount() {
     return (await this.burns()).reduce((sum, burn) => sum += burn.amount, 0);
   }
+
+  async dollarPoolChanges() {
+    const { poolChangeHistory } = (await db).valueOf() as Schema;
+    return poolChangeHistory;
+  }
 }
