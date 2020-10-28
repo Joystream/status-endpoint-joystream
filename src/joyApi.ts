@@ -68,8 +68,8 @@ export class JoyApi {
   }
 
   async curators() {
-    return (await this.api.query.contentWorkingGroup.curatorById.entries())
-      .map(([storageKey, curator]) => curator);
+    return (await this.api.query.contentDirectoryWorkingGroup.workerById.entries())
+      .map(([storageKey, worker]) => worker);
   }
 
   async activeCurators() {
