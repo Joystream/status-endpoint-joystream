@@ -178,7 +178,7 @@ async function processBlock(api: ApiPromise, block: Block) {
             sender: senderAddress,
             recipient: BURN_ADDRESS,
             senderMemo: memo.toString(),
-            payoutAddress: parseAddress(memo.toString()),
+            xmrAddress: parseAddress(memo.toString()),
             amount: amount,
             date: new Date(blockTimestamp.toNumber()),
             blockHeight: blockNumber,
