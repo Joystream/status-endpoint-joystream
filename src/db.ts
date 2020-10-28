@@ -9,7 +9,7 @@ type Exchange = {
   sender: string;
   recipient: string;
   senderMemo: string;
-  xmrAddress: string;
+  payoutAddress: string;
   amount: number;
   date: Date;
   logTime: Date;

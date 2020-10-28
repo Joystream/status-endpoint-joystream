@@ -158,7 +158,7 @@ async function processBlock(api: ApiPromise, block: Block) {
         const handleExchange = async (senderAddress: string, amount: number) => {
           const memo = await api.query.memo.memo.at(blockHash, senderAddress);
           const amountUSD = price * amount;
-          let match: any = 'No address found'
+          let match: string = 'No address found'
           const parseAddress = (address: string) => {
             const regexps: RegExp[] = [
               new RegExp('(1|3)[a-km-zA-HJ-NP-Z1-9]{25,34}'),
@@ -178,7 +178,7 @@ async function processBlock(api: ApiPromise, block: Block) {
             sender: senderAddress,
             recipient: BURN_ADDRESS,
             senderMemo: memo.toString(),
-            xmrAddress: parseAddress(memo.toString()),
+            payoutAddress: parseAddress(memo.toString()),
             amount: amount,
             date: new Date(blockTimestamp.toNumber()),
             blockHeight: blockNumber,

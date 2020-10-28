@@ -1,11 +1,9 @@
 import { WsProvider, ApiPromise } from "@polkadot/api";
-import { Option } from "@polkadot/types";
 import { types } from "@joystream/types";
 import { db, Schema } from "./db";
 import { Hash } from "@polkadot/types/interfaces";
 import { Keyring } from "@polkadot/keyring";
 import { config } from "dotenv";
-import { DataObject } from "@joystream/types/media";
 import BN from "bn.js";
 import { log } from './debug';
 
@@ -60,12 +58,11 @@ export class JoyApi {
     return (
       await Promise.all(
         contentIds.map((id) =>
-          // Explicitly use "codec type" here, because content.size is not available in the auto-generated interface,
-          // as it interferes with already existing Struct.size
-          this.api.query.dataDirectory.dataObjectByContentId<Option<DataObject>>(id)
+          this.api.query.dataDirectory.dataObjectByContentId(id)
         )
       )
     )
+    // Explicitly use getField('size') here instead of content.size (it interferes with Map.size since Struct extends Map)
       .map(dataObjOpt => dataObjOpt.unwrapOr(undefined)?.getField('size').toNumber() || 0)
       .reduce((sum, dataObjSize) => Number(sum) + dataObjSize, 0);
   }
@@ -76,9 +73,7 @@ export class JoyApi {
   }
 
   async activeCurators() {
-    return (await this.curators())
-      .filter(c => c.stage.isActive)
-      .length;
+    return (await this.curators()).length;
   }
 
   async systemData() {
