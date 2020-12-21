@@ -11,7 +11,7 @@
     "setExchangeStatus": "ts-node ./src/commands/setExchangeStatus.ts"
   },
   "dependencies": {
-    "@joystream/types": "^0.13.0",
+    "@joystream/types": "^0.14.0",
     "@polkadot/api": "1.26.1",
     "@polkadot/keyring": "^3.0.1",
     "@polkadot/types": "1.26.1",
