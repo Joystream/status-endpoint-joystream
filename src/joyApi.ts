@@ -174,6 +174,27 @@ export class JoyApi {
     // Retrieve media data
     const contentDirectory = await this.api.query.dataDirectory.knownContentIds();
 
+    // query channel length directly from the query node
+    let channels = null;
+
+    const res = await fetch('https://hydra.joystream.org/graphql', {
+      method: 'POST',
+      headers: { 'Content-type' : 'application/json' },
+      body: JSON.stringify({ query: `
+        query { 
+            channels  
+            { 
+              id 
+            } 
+          }
+      `
+      })
+    });
+
+    if(res.ok){
+      channels = (await res.json()).data.channels.length;
+    }
+
     const size = await this.contentDirectorySize();
     const activeCurators = await this.activeCurators();
 
@@ -181,6 +202,7 @@ export class JoyApi {
       media_files: contentDirectory.length,
       size,
       activeCurators,
+      channels
     };
   }
 
