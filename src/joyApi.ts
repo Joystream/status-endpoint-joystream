@@ -22,6 +22,12 @@ export const BURN_ADDRESS = BURN_PAIR.address;
 
 log("BURN ADDRESS:", BURN_ADDRESS);
 
+// Query node
+if(process.env.QUERY_NODE === undefined){
+  throw new Error("Missing QUERY_NODE in .env!");
+}
+const QUERY_NODE = process.env.QUERY_NODE;
+
 export class JoyApi {
   endpoint: string;
   isReady: Promise<ApiPromise>;
@@ -177,7 +183,7 @@ export class JoyApi {
     // query channel length directly from the query node
     let channels = null;
 
-    const res = await fetch('https://hydra.joystream.org/graphql', {
+    const res = await fetch(QUERY_NODE, {
       method: 'POST',
       headers: { 'Content-type' : 'application/json' },
       body: JSON.stringify({ query: `
