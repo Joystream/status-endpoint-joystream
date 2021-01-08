@@ -22,6 +22,12 @@ export const BURN_ADDRESS = BURN_PAIR.address;
 
 log("BURN ADDRESS:", BURN_ADDRESS);
 
+// Query node
+if(process.env.QUERY_NODE === undefined){
+  throw new Error("Missing QUERY_NODE in .env!");
+}
+const QUERY_NODE = process.env.QUERY_NODE;
+
 export class JoyApi {
   endpoint: string;
   isReady: Promise<ApiPromise>;
@@ -174,6 +180,27 @@ export class JoyApi {
     // Retrieve media data
     const contentDirectory = await this.api.query.dataDirectory.knownContentIds();
 
+    // query channel length directly from the query node
+    let channels = null;
+
+    const res = await fetch(QUERY_NODE, {
+      method: 'POST',
+      headers: { 'Content-type' : 'application/json' },
+      body: JSON.stringify({ query: `
+        query { 
+            channels  
+            { 
+              id 
+            } 
+          }
+      `
+      })
+    });
+
+    if(res.ok){
+      channels = (await res.json()).data.channels.length;
+    }
+
     const size = await this.contentDirectorySize();
     const activeCurators = await this.activeCurators();
 
@@ -181,6 +208,7 @@ export class JoyApi {
       media_files: contentDirectory.length,
       size,
       activeCurators,
+      channels
     };
   }
 
