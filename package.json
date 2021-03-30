@@ -6,17 +6,17 @@
   "scripts": {
     "dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/app.ts",
     "build": "tsc --build tsconfig.json",
-    "start": "yarn run build && pm2 start ./lib/app.js -o out.log -e err.log",
+    "start": "yarn run build && pm2 start ./lib/app.js --name status-server -o out.log -e err.log",
     "increasePool": "ts-node ./src/commands/schedulePoolIncrease.ts",
     "setExchangeStatus": "ts-node ./src/commands/setExchangeStatus.ts"
   },
   "dependencies": {
-    "@joystream/types": "^0.14.0",
-    "@polkadot/api": "1.26.1",
-    "@polkadot/keyring": "^3.0.1",
-    "@polkadot/types": "1.26.1",
-    "@polkadot/util": "^3.0.1",
-    "@polkadot/util-crypto": "^3.0.1",
+    "@joystream/types": "file:joystream-types-v0.15.0.tgz",
+    "@polkadot/api": "4.2.1",
+    "@polkadot/keyring": "^6.0.5",
+    "@polkadot/types": "4.2.1",
+    "@polkadot/util": "^6.0.5",
+    "@polkadot/util-crypto": "^6.0.5",
     "@types/bn.js": "^4.11.6",
     "@types/locks": "^0.2.1",
     "bn.js": "^5.1.2",
@@ -27,10 +27,11 @@
     "locks": "^0.2.2",
     "lowdb": "^1.0.0",
     "moment": "^2.27.0",
-    "pm2": "^4.4.0"
+    "pm2": "^4.4.0",
+    "cross-fetch": "^3.0.6"
   },
   "devDependencies": {
-    "@polkadot/ts": "^0.1.82",
+    "@polkadot/ts": "^0.3.62",
     "@types/cors": "^2.8.6",
     "@types/express": "^4.17.6",
     "@types/lowdb": "^1.0.9",
