@@ -265,4 +265,9 @@ export class JoyApi {
     const { poolChangeHistory } = (await db).valueOf() as Schema;
     return poolChangeHistory;
   }
+
+  async totalUSDPaid() {
+    const { totalUSDPaid } = (await db).valueOf() as Schema
+    return totalUSDPaid
+  }
 }

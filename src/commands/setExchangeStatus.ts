@@ -22,13 +22,21 @@ async function main() {
   const confirmed = await confirm(`Are you sure you want to change its status to ${status}?`);
 
   if (confirmed) {
+    // Update exchange status
     (await db)
         .defaults({ exchanges: [] as Exchange[] })
         .get('exchanges')
         .get(index)
         .assign({ status })
-        .write();
-    console.log(`Exchange updated!`);
+        .value();
+    // Update totalUSDPaid
+    (await db)
+      .defaults({ totalUSDPaid: 0 })
+      .update('totalUSDPaid', (prev) => prev + exchange.amountUSD)
+      .value();
+    // Save changes
+    (await db).write()
+    console.log(`Exchange status and totalUSDPaid updated!`);
   }
 }
 

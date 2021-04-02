@@ -57,6 +57,7 @@ type ScheduledPoolIncrease = {
 type Schema = {
   exchanges?: Exchange[];
   sizeDollarPool?: number;
+  totalUSDPaid?: number;
   lastBlockProcessed?: number;
   replenishAmount?: number;
   tokensBurned?: number;
