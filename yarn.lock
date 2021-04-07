@@ -9,9 +9,10 @@
   dependencies:
     regenerator-runtime "^0.13.4"
 
-"@joystream/types@file:joystream-types-v0.15.0.tgz":
+"@joystream/types@^0.15.0":
   version "0.15.0"
-  resolved "file:joystream-types-v0.15.0.tgz#b77e225c80c1120738cadc07f669d9ac05d21f9b"
+  resolved "https://registry.yarnpkg.com/@joystream/types/-/types-0.15.0.tgz#7493fbd39bd3b0de7d110e25710a4797de4c302f"
+  integrity sha512-UjfHH3MlRUt2yRnzqsynoXcifWLGuzXm0VFBZIpgZo7IJQpZMbY6bmORYsxpAuwAebm4ogSqvWAzrSSJa5s6bQ==
   dependencies:
     "@polkadot/api" "4.2.1"
     "@polkadot/keyring" "^6.0.5"
