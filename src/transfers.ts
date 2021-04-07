@@ -4,9 +4,9 @@ import { EventRecord, Balance } from '@polkadot/types/interfaces';
 import { db, refreshDb, Exchange, BlockProcessingError, BlockProcessingWarning, Burn, PoolChange } from './db';
 import { ApiPromise } from "@polkadot/api";
 import locks from "locks";
-import Block from "@polkadot/types/generic/Block";
+import { GenericBlock as Block } from "@polkadot/types/generic/Block";
 import { LookupSource } from "@joystream/types/augment/all";
-import Extrinsic from "@polkadot/types/extrinsic/Extrinsic";
+import { GenericExtrinsic as Extrinsic } from "@polkadot/types/extrinsic/Extrinsic";
 import { log, error } from './debug';
 
 const processingLock = locks.createMutex();
@@ -106,7 +106,7 @@ async function processBlock(api: ApiPromise, block: Block) {
   const blockNumber = header.number.toNumber();
 
   try {
-    await new Promise(async (resolve, reject) => {
+    await new Promise<void>(async (resolve, reject) => {
       // Set block processing timeout to avoid infinite lock
       const processingTimeout = setTimeout(
         () => reject('Block processing timeout'),

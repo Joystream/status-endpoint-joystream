@@ -3,7 +3,7 @@ import FileAsync from "lowdb/adapters/FileAsync";
 import { log } from './debug';
 
 const ExchangeStatuses = [ 'PENDING', 'FINALIZED' ] as const;
-type ExchangeStatus = typeof ExchangeStatuses[number];
+export type ExchangeStatus = typeof ExchangeStatuses[number];
 
 type Exchange = {
   sender: string;
@@ -57,6 +57,7 @@ type ScheduledPoolIncrease = {
 type Schema = {
   exchanges?: Exchange[];
   sizeDollarPool?: number;
+  totalUSDPaid?: number;
   lastBlockProcessed?: number;
   replenishAmount?: number;
   tokensBurned?: number;

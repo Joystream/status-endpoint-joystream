@@ -23,6 +23,7 @@ export async function getStatus() {
     extecutedBurnsAmount: await api.executedBurnsAmount(),
     price: await api.price(),
     dollarPoolChanges: await api.dollarPoolChanges(),
+    totalUSDPaid: await api.totalUSDPaid()
   });
 
   return status;

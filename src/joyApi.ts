@@ -6,6 +6,7 @@ import { Keyring } from "@polkadot/keyring";
 import { config } from "dotenv";
 import BN from "bn.js";
 import { log } from './debug';
+import fetch from "cross-fetch"
 
 // Init .env config
 config();
@@ -39,7 +40,7 @@ export class JoyApi {
     this.endpoint = wsEndpoint;
     this.isReady = (async () => {
       const api = await new ApiPromise({ provider: new WsProvider(wsEndpoint), types })
-        .isReady;
+        .isReadyOrError;
       return api;
     })();
   }
@@ -183,22 +184,29 @@ export class JoyApi {
     // query channel length directly from the query node
     let channels = null;
 
-    const res = await fetch(QUERY_NODE, {
-      method: 'POST',
-      headers: { 'Content-type' : 'application/json' },
-      body: JSON.stringify({ query: `
-        query { 
-            channels  
-            { 
-              id 
-            } 
-          }
-      `
-      })
-    });
+    try {
+      const res = await fetch(QUERY_NODE, {
+        method: 'POST',
+        headers: { 'Content-type' : 'application/json' },
+        body: JSON.stringify({ query: `
+          query { 
+              channels  
+              { 
+                id 
+              } 
+            }
+        `
+        })
+      });
 
-    if(res.ok){
-      channels = (await res.json()).data.channels.length;
+      if(res.ok){
+        channels = (await res.json()).data.channels.length;
+      } else {
+        console.error('Invalid query node response status', res.status)
+      }
+    } catch(e) {
+      console.error('Query node fetch error:', e)
+      /* Just continue */
     }
 
     const size = await this.contentDirectorySize();
@@ -256,5 +264,10 @@ export class JoyApi {
   async dollarPoolChanges() {
     const { poolChangeHistory } = (await db).valueOf() as Schema;
     return poolChangeHistory;
+  }
+
+  async totalUSDPaid() {
+    const { totalUSDPaid } = (await db).valueOf() as Schema
+    return totalUSDPaid
   }
 }
