@@ -61,17 +61,13 @@ export class JoyApi {
   }
 
   async contentDirectorySize() {
-    const contentIds = await this.api.query.dataDirectory.knownContentIds();
-    return (
-      await Promise.all(
-        contentIds.map((id) =>
-          this.api.query.dataDirectory.dataObjectByContentId(id)
-        )
-      )
-    )
+    const contentEntries = await this.api.query.dataDirectory.dataByContentId.entries();
+    const sizeInBytes = contentEntries
     // Explicitly use getField('size') here instead of content.size (it interferes with Map.size since Struct extends Map)
-      .map(dataObjOpt => dataObjOpt.unwrapOr(undefined)?.getField('size').toNumber() || 0)
+      .map(([,dataObject]) => dataObject.getField('size').toNumber() || 0)
       .reduce((sum, dataObjSize) => Number(sum) + dataObjSize, 0);
+
+    return { sizeInBytes, numberOfObjects: contentEntries.length }
   }
 
   async curators() {
@@ -178,9 +174,6 @@ export class JoyApi {
   }
 
   async mediaData() {
-    // Retrieve media data
-    const contentDirectory = await this.api.query.dataDirectory.knownContentIds();
-
     // query channel length directly from the query node
     let channels = null;
 
@@ -190,7 +183,7 @@ export class JoyApi {
         headers: { 'Content-type' : 'application/json' },
         body: JSON.stringify({ query: `
           query { 
-              channels  
+              channels(limit: 9999)
               { 
                 id 
               } 
@@ -209,12 +202,12 @@ export class JoyApi {
       /* Just continue */
     }
 
-    const size = await this.contentDirectorySize();
+    const { sizeInBytes, numberOfObjects } = await this.contentDirectorySize();
     const activeCurators = await this.activeCurators();
 
     return {
-      media_files: contentDirectory.length,
-      size,
+      media_files: numberOfObjects,
+      size: sizeInBytes,
       activeCurators,
       channels
     };
