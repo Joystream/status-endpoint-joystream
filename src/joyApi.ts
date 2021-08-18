@@ -176,6 +176,9 @@ export class JoyApi {
   async mediaData() {
     // query channel length directly from the query node
     let channels = null;
+    let numberOfMediaFiles = null;
+    let mediaFilesSize = null;
+    let activeCurators = null;
 
     try {
       const res = await fetch(QUERY_NODE, {
@@ -186,14 +189,34 @@ export class JoyApi {
               channels(limit: 9999)
               { 
                 id 
-              } 
+              },
+              dataObjects(limit: 99999)
+              {
+                size
+              },
+              curatorGroups(where: { isActive_eq: true }) {
+                curatorIds
+              }
             }
         `
         })
       });
 
       if(res.ok){
-        channels = (await res.json()).data.channels.length;
+        let responseData = (await res.json()).data;
+
+        channels = responseData.channels.length;
+        numberOfMediaFiles = responseData.dataObjects.length;
+        mediaFilesSize = responseData.dataObjects.reduce(
+          (acc: number, file: { size: number }) => acc + file.size,
+          0
+        );
+        activeCurators = responseData.curatorGroups.reduce(
+          (acc: number, { curatorIds }: { curatorIds: number[] }) =>
+            acc + curatorIds.length,
+          0
+        );
+
       } else {
         console.error('Invalid query node response status', res.status)
       }
@@ -202,12 +225,9 @@ export class JoyApi {
       /* Just continue */
     }
 
-    const { sizeInBytes, numberOfObjects } = await this.contentDirectorySize();
-    const activeCurators = await this.activeCurators();
-
     return {
-      media_files: numberOfObjects,
-      size: sizeInBytes,
+      media_files: numberOfMediaFiles,
+      size: mediaFilesSize,
       activeCurators,
       channels
     };
