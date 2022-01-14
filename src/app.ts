@@ -35,7 +35,7 @@ app.post("/status", async (req, res) => {
 
   const { exchangeIndex, exchangeStatus } = req.body;
 
-  if (!exchangeIndex || !exchangeStatus) {
+  if (exchangeIndex === undefined || exchangeStatus === undefined) {
     res.status(400).send({
       message: "Missing exchangeIndex or exchangeStatus in request body."
     });
