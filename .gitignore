@@ -3,3 +3,4 @@ lib/
 .env
 err.log
 out.log
+exchanges.json
