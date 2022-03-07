@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { getStatus } from "./get-status";
+import { getStatus, getPrice } from "./get-status";
 import startTransfersMonitor from './transfers';
 import { log } from './debug';
 import { setExchangeStatus } from './setExchangeStatus';
@@ -21,6 +21,12 @@ app.get("/", async (req, res) => {
   let status = await getStatus();
   res.setHeader("Content-Type", "application/json");
   res.send(status);
+});
+
+app.get("/price", async (req,res) => {
+  let price = await getPrice();
+  res.setHeader("Content-Type", "application/json");
+  res.send(price)
 });
 
 app.post("/status", async (req, res) => {
