@@ -9,6 +9,8 @@ import { log } from './debug';
 import fetch from "cross-fetch"
 import { AnyJson } from "@polkadot/types/types";
 import { Worker } from "@joystream/types/working-group";
+import { ReferendumStage } from "@joystream/types/referendum";
+import { CouncilStageUpdate } from "@joystream/types/council";
 
 // Init .env config
 config();
@@ -213,17 +215,32 @@ export class JoyApi {
     };
   }
 
+  parseElectionStage(electionStage: ReferendumStage, councilStage: CouncilStageUpdate): string {
+    if (councilStage.stage.isOfType("Idle")) {
+      return "Not running";
+    }
+
+    if (councilStage.stage.isOfType("Announcing")) {
+      return "Announcing"
+    }
+
+    if (electionStage.isOfType("Voting")) {
+      return "Voting"
+    }
+
+    return "Revealing"
+  }
+
   async councilData(): Promise<CouncilData> {
-    const [councilMembers, electionStage] = await Promise.all([
-      this.api.query.council.activeCouncil(),
-      this.api.query.councilElection.stage(),
+    const [councilMembers, electionStage, councilStage] = await Promise.all([
+      this.api.query.council.councilMembers(),
+      this.api.query.referendum.stage(),
+      this.api.query.council.stage()
     ]);
 
     return {
       members_count: councilMembers.length,
-      election_stage: electionStage.isSome
-        ? electionStage.unwrap().type
-        : "Not Running",
+      election_stage: this.parseElectionStage(electionStage, councilStage)
     };
   }
 
