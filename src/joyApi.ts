@@ -170,6 +170,18 @@ export class JoyApi {
     return (await this.curators()).length;
   }
 
+  async dataObjectsStats(): Promise<{ count: number, size: number }> {
+    // Supports size up to 8192 TB (because JS MAX_SAFE_INTEGER is 9007199254740991)
+    const stats = { count: 0, size: 0 };
+    (await this.api.query.storage.bags.entries())
+      .forEach(([, bag]) => {
+        stats.count += bag.objects_number.toNumber()
+        stats.size += bag.objects_total_size.toNumber()
+      });
+
+    return stats
+  }
+
   async systemData(): Promise<SystemData> {
     let peers = 0
     try {
@@ -271,43 +283,25 @@ export class JoyApi {
   }
 
   async mediaData(): Promise<MediaData> {
-    // query channel length directly from the query node
-    let channels = null;
-    let numberOfMediaFiles = null;
-    let mediaFilesSize = null;
-    let activeCurators = await this.activeCurators();
-
-      const qnData = await this.qnQuery<{
+    const [qnData, activeCurators, { count: dataObjectsCount, size: dataObjectsSize }] = await Promise.all([
+      this.qnQuery<{
         channelsConnection: { totalCount: number },
-        storageDataObjectsConnection: { totalCount: number },
-        storageBuckets: { dataObjectsSize: string }[],
       }>(`
         {
           channelsConnection {
             totalCount
           }
-          storageDataObjectsConnection {
-            totalCount
-          }
-          storageBuckets {
-            dataObjectsSize
-          }
         }
-      `)
+      `),
+      this.activeCurators(),
+      this.dataObjectsStats()
+    ]);
 
-
-    if (qnData) {
-        channels = qnData.channelsConnection.totalCount;
-        numberOfMediaFiles = qnData.storageDataObjectsConnection.totalCount;
-        mediaFilesSize = qnData.storageBuckets.reduce(
-          (sum, bucket) => sum += parseInt(bucket.dataObjectsSize),
-          0
-        );
-    }
+    const channels = qnData ? qnData.channelsConnection.totalCount : (await this.api.query.content.channelById.keys()).length
 
     return {
-      media_files: numberOfMediaFiles,
-      size: mediaFilesSize,
+      media_files: dataObjectsCount,
+      size: dataObjectsSize,
       activeCurators,
       channels
     };
