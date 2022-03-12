@@ -364,7 +364,19 @@ export class JoyApi {
 
   async burnAddressBalance(): Promise<number> {
     const burnAddrInfo = await this.api.query.system.account(BURN_ADDRESS);
-    return burnAddrInfo.data.free.toNumber(); // Free balance
+
+    // An account needs to constantly have a minimum of EXISTENTIAL_DEPOSIT to be deemed active
+    // and we therefore don't want to try and burn the whole balance but rather try to keep the
+    // account balance at the EXISTENTIAL_DEPOSIT amount.
+
+    const EXISTENTIAL_DEPOSIT = 10;
+    const freeBalance = burnAddrInfo.data.free.toNumber();
+
+    if(freeBalance > EXISTENTIAL_DEPOSIT) {
+      return burnAddrInfo.data.free.toNumber() - EXISTENTIAL_DEPOSIT;
+    }
+
+    return 0;
   }
 
   async executedBurnsAmount(): Promise<number> {

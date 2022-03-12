@@ -200,7 +200,9 @@ async function processBlock(api: ApiPromise, block: Block) {
 
         // Processing extrinsics in the finalized block
         for (const [index, extrinsic] of Object.entries(extrinsics.toArray())) {
-          if (!(extrinsic.method.section === 'balances' && extrinsic.method.method === 'transfer')) {
+          const TRANSFER_METHODS = ['transfer', 'transferKeepAlive'];
+
+          if (!(extrinsic.method.section === 'balances' && TRANSFER_METHODS.includes(extrinsic.method.method))) {
             continue;
           }
           
