@@ -369,14 +369,10 @@ export class JoyApi {
     // and we therefore don't want to try and burn the whole balance but rather try to keep the
     // account balance at the EXISTENTIAL_DEPOSIT amount.
 
-    const EXISTENTIAL_DEPOSIT = 10;
     const freeBalance = burnAddrInfo.data.free.toNumber();
+    const EXISTENTIAL_DEPOSIT = this.api.consts.balances.existentialDeposit.toNumber();
 
-    if(freeBalance > EXISTENTIAL_DEPOSIT) {
-      return burnAddrInfo.data.free.toNumber() - EXISTENTIAL_DEPOSIT;
-    }
-
-    return 0;
+    return Math.max(freeBalance - EXISTENTIAL_DEPOSIT, 0);
   }
 
   async executedBurnsAmount(): Promise<number> {
