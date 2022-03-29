@@ -9,6 +9,8 @@ import { log } from './debug';
 import fetch from "cross-fetch"
 import { AnyJson } from "@polkadot/types/types";
 import { Worker } from "@joystream/types/working-group";
+import { ReferendumStage } from "@joystream/types/referendum";
+import { CouncilStageUpdate } from "@joystream/types/council";
 
 // Init .env config
 config();
@@ -225,17 +227,32 @@ export class JoyApi {
     };
   }
 
+  parseElectionStage(electionStage: ReferendumStage, councilStage: CouncilStageUpdate): string {
+    if (councilStage.stage.isOfType("Idle")) {
+      return "Not running";
+    }
+
+    if (councilStage.stage.isOfType("Announcing")) {
+      return "Announcing"
+    }
+
+    if (electionStage.isOfType("Voting")) {
+      return "Voting"
+    }
+
+    return "Revealing"
+  }
+
   async councilData(): Promise<CouncilData> {
-    const [councilMembers, electionStage] = await Promise.all([
-      this.api.query.council.activeCouncil(),
-      this.api.query.councilElection.stage(),
+    const [councilMembers, electionStage, councilStage] = await Promise.all([
+      this.api.query.council.councilMembers(),
+      this.api.query.referendum.stage(),
+      this.api.query.council.stage()
     ]);
 
     return {
       members_count: councilMembers.length,
-      election_stage: electionStage.isSome
-        ? electionStage.unwrap().type
-        : "Not Running",
+      election_stage: this.parseElectionStage(electionStage, councilStage)
     };
   }
 
@@ -341,7 +358,15 @@ export class JoyApi {
 
   async burnAddressBalance(): Promise<number> {
     const burnAddrInfo = await this.api.query.system.account(BURN_ADDRESS);
-    return burnAddrInfo.data.free.toNumber(); // Free balance
+
+    // An account needs to constantly have a minimum of EXISTENTIAL_DEPOSIT to be deemed active
+    // and we therefore don't want to try and burn the whole balance but rather try to keep the
+    // account balance at the EXISTENTIAL_DEPOSIT amount.
+
+    const freeBalance = burnAddrInfo.data.free.toNumber();
+    const EXISTENTIAL_DEPOSIT = this.api.consts.balances.existentialDeposit.toNumber();
+
+    return Math.max(freeBalance - EXISTENTIAL_DEPOSIT, 0);
   }
 
   async executedBurnsAmount(): Promise<number> {

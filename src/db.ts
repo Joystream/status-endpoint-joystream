@@ -8,8 +8,6 @@ export type ExchangeStatus = typeof ExchangeStatuses[number];
 type Exchange = {
   sender: string;
   recipient: string;
-  senderMemo: string;
-  xmrAddress: string;
   amount: number;
   date: Date;
   logTime: Date;
