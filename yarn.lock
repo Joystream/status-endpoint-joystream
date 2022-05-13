@@ -21,10 +21,10 @@
   dependencies:
     "@cspotcode/source-map-consumer" "0.8.0"
 
-"@joystream/types@^0.18.1":
-  version "0.18.2"
-  resolved "https://registry.yarnpkg.com/@joystream/types/-/types-0.18.2.tgz#fd82d28cb14145784d3b3e18857fa8df76c97a01"
-  integrity sha512-ylvC0g3BjirWhbrlgkWLnCzcIntzlFwnObNyYCQ7pV4//TrwGPeS6ozdKnFNlzUz/xRfY3GMCedl5Sa6Def5BQ==
+"@joystream/types@^0.19.3":
+  version "0.19.3"
+  resolved "https://registry.yarnpkg.com/@joystream/types/-/types-0.19.3.tgz#2edae0e2a8fc5ab1e596cf7768adcc280bbf0bf5"
+  integrity sha512-RBxpMoJp09F8SWKI8e969nzKzkrhOInXpeCL7R8Av1OU0IPyHDxw8dI/9qunQy13m/eJndfGMIEjT/TkX/UTEA==
   dependencies:
     "@polkadot/api" "5.9.1"
     "@polkadot/keyring" "7.3.1"
