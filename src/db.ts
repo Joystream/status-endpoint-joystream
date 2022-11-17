@@ -1,6 +1,7 @@
 import low from "lowdb";
 import FileAsync from "lowdb/adapters/FileAsync";
 import { log } from './debug';
+import { calcPrice } from "./utils";
 
 const ExchangeStatuses = [ 'PENDING', 'FINALIZED' ] as const;
 export type ExchangeStatus = typeof ExchangeStatuses[number];
@@ -69,10 +70,10 @@ type Schema = {
 const adapter = new FileAsync<Schema>("exchanges.json");
 const db = low(adapter);
 
-const refreshDb = async (currentBlockNumber?: number, blockTime?: Date, issuance?: number) => {
+const refreshDb = async (currentBlockNumber?: number, blockTime?: Date, issuanceInJOY?: number) => {
   // Re-read from file
   await (await db).read();
-  if (currentBlockNumber && blockTime && issuance) {
+  if (currentBlockNumber && blockTime && issuanceInJOY) {
     // Check if any scheduled dollar pool increases should be executed
     const { scheduledPoolIncreases = [] } = (await db).valueOf() as Schema;
     for (let [index, { blockHeight, amount, reason }] of Object.entries(scheduledPoolIncreases)) {
@@ -90,9 +91,9 @@ const refreshDb = async (currentBlockNumber?: number, blockTime?: Date, issuance
           blockTime,
           change: amount,
           reason,
-          issuance,
+          issuance: issuanceInJOY,
           valueAfter: poolAfter,
-          rateAfter: poolAfter / issuance
+          rateAfter: calcPrice(issuanceInJOY, poolAfter)
         };
 
         await (await db)
