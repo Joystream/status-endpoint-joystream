@@ -11,10 +11,12 @@ import { AnyJson } from "@polkadot/types/types";
 import {
   PalletWorkingGroupGroupWorker as Worker,
   PalletReferendumReferendumStage as ReferendumStage,
-  PalletCouncilCouncilStageUpdate as CouncilStageUpdate
+  PalletCouncilCouncilStageUpdate as CouncilStageUpdate,
+  PalletVestingVestingInfo
 } from '@polkadot/types/lookup'
 import { calcPrice } from './utils';
 import { JOYSTREAM_ADDRESS_PREFIX } from '@joystream/types'
+import { Vec } from '@polkadot/types';
 
 // Init .env config
 config();
@@ -89,6 +91,7 @@ type RuntimeData = {
 
 type NetworkStatus = {
   totalIssuance: number // In JOY
+  vestingLockedIssuance: number // In JOY
   system: SystemData
   finalizedBlockHeight: number
   council: CouncilData,
@@ -189,6 +192,31 @@ export class JoyApi {
         : await this.api.query.balances.totalIssuance.at(blockHash);
 
     return this.toJOY(issuanceInHAPI)
+  }
+
+  async vestingLockedJOY(): Promise<number> {
+    const finalizedHash = await this.finalizedHash()
+    const { number: finalizedBlockHeight } = await this.api.rpc.chain.getHeader(finalizedHash)
+    const vestingEntries = await this.api.query.vesting.vesting.entriesAt(finalizedHash)
+    const getUnclaimableSum = (schedules: Vec<PalletVestingVestingInfo>) => (
+      schedules.reduce(
+        (sum, vesting) => {
+          const claimableBlocks = finalizedBlockHeight.toNumber() - vesting.startingBlock.toNumber()
+          if (claimableBlocks > 0) {
+            const claimableAmount = vesting.perBlock.mul(new BN(claimableBlocks))
+            return sum.add(vesting.locked.sub(claimableAmount))
+          }
+          return sum
+        },
+        new BN(0)
+      )
+    )
+    const totalLockedHAPI = vestingEntries.reduce((sum, entry) =>
+      sum.add(getUnclaimableSum(entry[1].unwrap())),
+      new BN(0)
+    )
+
+    return this.toJOY(totalLockedHAPI)
   }
 
   async curators(): Promise<Worker[]> {
@@ -421,6 +449,7 @@ export class JoyApi {
         media,
         dollarPool,
       ], [
+        vestingLockedJOY,
         exchanges,
         burns,
         burnAddressBalanceInHAPI,
@@ -445,6 +474,7 @@ export class JoyApi {
         this.dollarPool()
       ]),
       Promise.all([
+        this.vestingLockedJOY(),
         this.exchanges(),
         this.burns(),
         this.burnAddressBalanceInHAPI(),
@@ -457,6 +487,7 @@ export class JoyApi {
     ])
     return {
       totalIssuance: totalIssuanceInJOY,
+      vestingLockedIssuance: vestingLockedJOY,
       system,
       finalizedBlockHeight,
       council,
