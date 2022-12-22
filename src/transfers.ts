@@ -1,13 +1,12 @@
 import { JoyApi, BURN_PAIR, BURN_ADDRESS } from "./joyApi";
-import { Vec, Compact } from '@polkadot/types/codec';
-import { EventRecord, Balance } from '@polkadot/types/interfaces';
+import { Vec } from '@polkadot/types/codec';
+import { EventRecord, Header } from '@polkadot/types/interfaces';
 import { db, refreshDb, Exchange, BlockProcessingError, BlockProcessingWarning, Burn, PoolChange } from './db';
 import { ApiPromise } from "@polkadot/api";
 import locks from "locks";
-import { GenericBlock as Block } from "@polkadot/types/generic/Block";
-import { LookupSource } from "@joystream/types/augment/all";
-import { GenericExtrinsic as Extrinsic } from "@polkadot/types/extrinsic/Extrinsic";
 import { log, error } from './debug';
+import { calcPrice } from "./utils";
+import { FrameSystemEventRecord } from "@polkadot/types/lookup";
 
 const processingLock = locks.createMutex();
 const burningLock = locks.createMutex();
@@ -47,63 +46,39 @@ async function critialExit(faultBlockNumber: number, reason?: string) {
 function autoburn(api: ApiPromise) {
   // We need to use the lock to prevent executing multiple burns in the same block, since it causes transaction priority errors
   burningLock.lock(async () => {
-    const pendingBurnAmount = await joy.burnAddressBalance();
-    if (pendingBurnAmount === 0) {
+    const burnAddressBalanceInHAPI = await joy.burnAddressBalanceInHAPI();
+    const mockBurnTx = await api.tx.joystreamUtility.burnAccountTokens(burnAddressBalanceInHAPI)
+    const burnTxFeeInHAPI = (await mockBurnTx.paymentInfo(BURN_ADDRESS)).partialFee
+    const burnAmountInHAPI = burnAddressBalanceInHAPI.sub(burnTxFeeInHAPI)
+    if (burnAmountInHAPI.lten(0)) {
       burningLock.unlock();
       return;
     }
-    log(`Executing automatic burn of ${ pendingBurnAmount } tokens`);
+    log(`Executing automatic burn of ${ burnAmountInHAPI.toString() } HAPI (tx fee: ${burnTxFeeInHAPI.toString()})`);
     try {
-      await api.tx.balances
-        .transfer(BURN_ADDRESS, 0)
+      api.tx.joystreamUtility.burnAccountTokens(burnAmountInHAPI)
         // We assume that required transaction fee is 0 (which is currently true)
-        .signAndSend(BURN_PAIR, { tip: pendingBurnAmount }, async result => {
+        .signAndSend(BURN_PAIR, async result => {
           if (result.status.isInBlock) {
             const blockHash = result.status.asInBlock.toHex();
-            log(`Automatic burn of ${ pendingBurnAmount } included in block: ${blockHash}`);
+            log(`Automatic burn of ${ burnAmountInHAPI } HAPI included in block: ${blockHash}`);
             burningLock.unlock();
           }
           if (result.isError) {
             const statusType = result.status.type.toString() || 'Error';
-            error(`Automatic burn of ${ pendingBurnAmount } tokens extrinsic failed with status: ${statusType}`);
+            error(`Automatic burn of ${ burnAmountInHAPI } HAPI extrinsic failed with status: ${statusType}`);
             burningLock.unlock();
           }
         });
       } catch(e) {
-        error(`Automatic burn of ${ pendingBurnAmount } tokens failed with: `, e);
+        error(`Automatic burn of ${ burnAmountInHAPI } HAPI failed with: `, e);
         burningLock.unlock();
       }
   });
 }
 
-type TransferExtrinsicData = {
-  senderAddress: string;
-  recipientAddress: string;
-  amount: number;
-  tip: number;
-}
-
-function getTransferExtrinsicData(extrinsic: Extrinsic): TransferExtrinsicData {
-  return {
-    senderAddress: extrinsic.signer.toString(),
-    recipientAddress: (extrinsic.args[0] as LookupSource).toString(),
-    amount: (extrinsic.args[1] as Compact<Balance>).toNumber(),
-    tip: extrinsic.tip.toNumber()
-  }
-}
-
-function wasExtrinsicSuccesful(events: EventRecord[], index: number) {
-  return events.some(({ event, phase }) => (
-    event.section === 'system'
-    && event.method === 'ExtrinsicSuccess'
-    && phase.isApplyExtrinsic
-    && phase.asApplyExtrinsic.toNumber() === index
-  ))
-}
-
-async function processBlock(api: ApiPromise, block: Block) {
-  const { header, extrinsics } = block;
-  const blockNumber = header.number.toNumber();
+async function processBlock(api: ApiPromise, blockHeader: Header, events: Vec<FrameSystemEventRecord>) {
+  const blockNumber = blockHeader.number.toNumber();
 
   try {
     await new Promise<void>(async (resolve, reject) => {
@@ -127,11 +102,11 @@ async function processBlock(api: ApiPromise, block: Block) {
 
         log(`Processing block #${ blockNumber }...`);
 
-        const blockHash = header.hash;
+        const blockHash = blockHeader.hash;
         const blockTimestamp = await api.query.timestamp.now.at(blockHash);
-        const issuance = await joy.totalIssuance(blockHash);
+        const issuanceInJOY = await joy.totalIssuanceInJOY(blockHash);
         // Refresh db state before processing each new block
-        await refreshDb(blockNumber, new Date(blockTimestamp.toNumber()), issuance);
+        await refreshDb(blockNumber, new Date(blockTimestamp.toNumber()), issuanceInJOY);
 
         const events = await api.query.system.events.at(blockHash) as Vec<EventRecord>;
         const bestFinalized = (await api.derive.chain.bestNumberFinalized()).toNumber();
@@ -152,16 +127,16 @@ async function processBlock(api: ApiPromise, block: Block) {
         }
 
         // To calcultate the price we use parent hash (so all the transactions that happend in this block have no effect on it)
-        const price = joy.calcPrice(issuance, currentDollarPool);
+        const price = calcPrice(issuanceInJOY, currentDollarPool);
         
         // Handlers
-        const handleExchange = async (senderAddress: string, amount: number) => {
-          const amountUSD = price * amount;
+        const handleExchange = async (senderAddress: string, amountJOY: number) => {
+          const amountUSD = price * amountJOY;
 
           const exchange: Exchange = {
             sender: senderAddress,
             recipient: BURN_ADDRESS,
-            amount: amount,
+            amount: amountJOY,
             date: new Date(blockTimestamp.toNumber()),
             blockHeight: blockNumber,
             price: price,
@@ -182,9 +157,9 @@ async function processBlock(api: ApiPromise, block: Block) {
           log('Exchange handled!', exchange);
         }
 
-        const handleBurn = async (amount: number) => {
+        const handleBurn = async (amountJOY: number) => {
           const burn: Burn = {
-            amount,
+            amount: amountJOY,
             blockHeight: blockNumber,
             date: new Date(blockTimestamp.toNumber()),
             logTime: new Date()
@@ -198,28 +173,20 @@ async function processBlock(api: ApiPromise, block: Block) {
           log('Burn handled!', burn);
         }
 
-        // Processing extrinsics in the finalized block
-        for (const [index, extrinsic] of Object.entries(extrinsics.toArray())) {
-          const TRANSFER_METHODS = ['transfer', 'transferKeepAlive'];
-
-          if (!(extrinsic.method.section === 'balances' && TRANSFER_METHODS.includes(extrinsic.method.method))) {
-            continue;
-          }
-          
-          const txSuccess = wasExtrinsicSuccesful(events.toArray(), parseInt(index));
-          
-          if (!txSuccess) {
-            continue;
-          }
-          
-          const { senderAddress, recipientAddress, amount, tip } = getTransferExtrinsicData(extrinsic);
-          
-          if (recipientAddress === BURN_ADDRESS && amount > 0) {
-            await handleExchange(senderAddress, amount);
+        // Processing events in the finalized block
+        for (const { event } of events) {
+          if (api.events.balances.Transfer.is(event)) {
+            const [from, to, amount] = event.data
+            if (to.eq(BURN_ADDRESS) && !amount.isZero()) {
+              await handleExchange(from.toString(), joy.toJOY(amount));
+            }
           }
 
-          if (senderAddress === BURN_ADDRESS && tip > 0) {
-            await handleBurn(tip);
+          if (api.events.joystreamUtility.TokensBurned.is(event)) {
+            const [account, burnedAmount] = event.data
+            if (account.eq(BURN_ADDRESS) && !burnedAmount.isZero()) {
+              await handleBurn(joy.toJOY(burnedAmount))
+            }
           }
         }
 
@@ -237,9 +204,9 @@ async function processBlock(api: ApiPromise, block: Block) {
             blockTime: new Date(blockTimestamp.toNumber()),
             change: -sumDollarsInBlock,
             reason: `Exchange(s) totalling ${sumTokensInBlock} tokens`,
-            issuance,
+            issuance: issuanceInJOY,
             valueAfter: dollarPoolAfter,
-            rateAfter: dollarPoolAfter / issuance
+            rateAfter: calcPrice(issuanceInJOY, dollarPoolAfter)
           };
 
           await (await db)
@@ -249,7 +216,7 @@ async function processBlock(api: ApiPromise, block: Block) {
             .write();
         }
 
-        log('Issuance at this block:', issuance);
+        log('Issuance at this block (in JOY):', issuanceInJOY);
         log('Token price at this block:', price);
         log('Exchanged tokens in this block:', sumTokensInBlock);
         log('Exchanged tokens value in this block:', `$${sumDollarsInBlock}`);
@@ -270,11 +237,12 @@ async function processBlock(api: ApiPromise, block: Block) {
 async function processPastBlocks(api: ApiPromise, from: number, to: number) {
   for (let blockNumber = from; blockNumber <= to; ++blockNumber) {
     const hash = await api.rpc.chain.getBlockHash(blockNumber);
-    const { block } = await api.rpc.chain.getBlock(hash);
+    const blockHeader = await api.rpc.chain.getHeader(hash);
+    const events = await api.query.system.events.at(hash);
     try {
-      await processBlock(api, block);
+      await processBlock(api, blockHeader, events);
     } catch (e) {
-      critialExit(block.header.number.toNumber(), JSON.stringify(e));
+      critialExit(blockHeader.number.toNumber(), JSON.stringify(e));
     }
   }
 }

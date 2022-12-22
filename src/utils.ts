@@ -12,3 +12,10 @@ export function PromiseAllObj(obj: {
     )
   ).then((res: any[]) => fromEntries(res));
 }
+
+export function calcPrice(
+  totalIssuanceInJOY: number,
+  dollarPoolSize: number
+): number {
+  return dollarPoolSize / totalIssuanceInJOY;
+}

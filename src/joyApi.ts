@@ -1,23 +1,29 @@
+import '@joystream/types'
 import { WsProvider, ApiPromise } from "@polkadot/api";
-import { types } from "@joystream/types";
 import { Burn, db, Exchange, PoolChange, Schema } from "./db";
-import { Hash } from "@polkadot/types/interfaces";
+import { ChainProperties, Hash } from "@polkadot/types/interfaces";
 import { Keyring } from "@polkadot/keyring";
 import { config } from "dotenv";
 import BN from "bn.js";
 import { log } from './debug';
 import fetch from "cross-fetch"
 import { AnyJson } from "@polkadot/types/types";
-import { Worker } from "@joystream/types/working-group";
-import { ReferendumStage } from "@joystream/types/referendum";
-import { CouncilStageUpdate } from "@joystream/types/council";
+import {
+  PalletWorkingGroupGroupWorker as Worker,
+  PalletReferendumReferendumStage as ReferendumStage,
+  PalletCouncilCouncilStageUpdate as CouncilStageUpdate,
+  PalletVestingVestingInfo
+} from '@polkadot/types/lookup'
+import { calcPrice } from './utils';
+import { JOYSTREAM_ADDRESS_PREFIX } from '@joystream/types'
+import { Vec } from '@polkadot/types';
 
 // Init .env config
 config();
 
 // Burn key pair generation
 const burnSeed = process.env.BURN_ADDRESS_SEED;
-const keyring = new Keyring();
+const keyring = new Keyring({ ss58Format: JOYSTREAM_ADDRESS_PREFIX });
 if (burnSeed === undefined) {
   throw new Error("Missing BURN_ADDRESS_SEED in .env!");
 }
@@ -48,7 +54,7 @@ type CouncilData = {
 type ValidatorsData = {
   count: number
   validators: AnyJson
-  total_stake: number
+  total_stake: number // in JOY
 }
 
 type MembershipData = {
@@ -84,7 +90,8 @@ type RuntimeData = {
 }
 
 type NetworkStatus = {
-  totalIssuance: number
+  totalIssuance: number // In JOY
+  vestingLockedIssuance: number // In JOY
   system: SystemData
   finalizedBlockHeight: number
   council: CouncilData,
@@ -106,7 +113,8 @@ type NetworkStatus = {
 
 export class JoyApi {
   endpoint: string;
-  isReady: Promise<ApiPromise>;
+  tokenDecimals!: number;
+  isReady: Promise<[ApiPromise, ChainProperties]>;
   api!: ApiPromise;
 
   protected cachedNetworkStatus: {
@@ -119,17 +127,40 @@ export class JoyApi {
       endpoint || process.env.PROVIDER || "ws://127.0.0.1:9944";
     this.endpoint = wsEndpoint;
     this.isReady = (async () => {
-      const api = await new ApiPromise({ provider: new WsProvider(wsEndpoint), types })
+      const api = await new ApiPromise({ provider: new WsProvider(wsEndpoint) })
         .isReadyOrError;
-      return api;
+      const chainProperties = await api.rpc.system.properties()
+      const result: [ApiPromise, ChainProperties] = [api, chainProperties]
+      return result;
     })();
   }
 
   get init(): Promise<JoyApi> {
-    return this.isReady.then((instance) => {
-      this.api = instance;
+    return this.isReady.then(([api, chainProperties]) => {
+      this.api = api;
+      this.tokenDecimals = chainProperties.tokenDecimals.unwrap()[0].toNumber()
       return this;
     });
+  }
+
+  toJOY(hapi: BN): number {
+    try {
+      // <= 900719 JOY - we keep the decimals
+      return hapi.toNumber() / Math.pow(10, this.tokenDecimals)
+    } catch {
+      // > 900719 JOY - we discard the decimals
+      return hapi.div(new BN(Math.pow(10, this.tokenDecimals))).toNumber()
+    }
+  }
+
+  toHAPI(joy: number): BN {
+    if (joy * Math.pow(10, this.tokenDecimals) > Number.MAX_SAFE_INTEGER) {
+      // > 900719 JOY - we discard the decimals
+      return new BN(joy).mul(new BN(Math.pow(10, this.tokenDecimals)))
+    } else {
+      // <= 900719 JOY, we keep the decimals
+      return new BN(Math.round(joy * Math.pow(10, this.tokenDecimals)))
+    }
   }
 
   async qnQuery<T>(query: string): Promise<T | null> {
@@ -154,18 +185,43 @@ export class JoyApi {
     return null
   }
 
-  async totalIssuance(blockHash?: Hash): Promise<number> {
-    const issuance =
+  async totalIssuanceInJOY(blockHash?: Hash): Promise<number> {
+    const issuanceInHAPI =
       blockHash === undefined
         ? await this.api.query.balances.totalIssuance()
         : await this.api.query.balances.totalIssuance.at(blockHash);
 
-    return issuance.toNumber();
+    return this.toJOY(issuanceInHAPI)
+  }
+
+  async vestingLockedJOY(): Promise<number> {
+    const finalizedHash = await this.finalizedHash()
+    const { number: finalizedBlockHeight } = await this.api.rpc.chain.getHeader(finalizedHash)
+    const vestingEntries = await this.api.query.vesting.vesting.entriesAt(finalizedHash)
+    const getUnclaimableSum = (schedules: Vec<PalletVestingVestingInfo>) => (
+      schedules.reduce(
+        (sum, vesting) => {
+          const claimableBlocks = finalizedBlockHeight.toNumber() - vesting.startingBlock.toNumber()
+          if (claimableBlocks > 0) {
+            const claimableAmount = vesting.perBlock.mul(new BN(claimableBlocks))
+            return sum.add(vesting.locked.sub(claimableAmount))
+          }
+          return sum
+        },
+        new BN(0)
+      )
+    )
+    const totalLockedHAPI = vestingEntries.reduce((sum, entry) =>
+      sum.add(getUnclaimableSum(entry[1].unwrap())),
+      new BN(0)
+    )
+
+    return this.toJOY(totalLockedHAPI)
   }
 
   async curators(): Promise<Worker[]> {
     return (await this.api.query.contentWorkingGroup.workerById.entries())
-      .map(([, worker]) => worker);
+      .map(([, worker]) => worker.unwrap());
   }
 
   async activeCurators(): Promise<number> {
@@ -177,8 +233,8 @@ export class JoyApi {
     const stats = { count: 0, size: 0 };
     (await this.api.query.storage.bags.entries())
       .forEach(([, bag]) => {
-        stats.count += bag.objects_number.toNumber()
-        stats.size += bag.objects_total_size.toNumber()
+        stats.count += bag.objectsNumber.toNumber()
+        stats.size += bag.objectsTotalSize.toNumber()
       });
 
     return stats
@@ -228,15 +284,15 @@ export class JoyApi {
   }
 
   parseElectionStage(electionStage: ReferendumStage, councilStage: CouncilStageUpdate): string {
-    if (councilStage.stage.isOfType("Idle")) {
+    if (councilStage.stage.isIdle) {
       return "Not running";
     }
 
-    if (councilStage.stage.isOfType("Announcing")) {
+    if (councilStage.stage.isAnnouncing) {
       return "Announcing"
     }
 
-    if (electionStage.isOfType("Voting")) {
+    if (electionStage.isVoting) {
       return "Voting"
     }
 
@@ -266,7 +322,7 @@ export class JoyApi {
     return {
       count: validators.length,
       validators: validators.toJSON(),
-      total_stake: totalStake.toNumber(),
+      total_stake: this.toJOY(totalStake),
     };
   }
 
@@ -334,16 +390,12 @@ export class JoyApi {
   }
 
   async price(blockHash?: Hash, dollarPoolSize?: number): Promise<number> {
-    const supply = await this.totalIssuance(blockHash);
+    const issuanceInJOY = await this.totalIssuanceInJOY(blockHash);
     const pool = dollarPoolSize !== undefined
       ? dollarPoolSize
       : (await this.dollarPool()).size;
 
-    return this.calcPrice(supply, pool);
-  }
-
-  calcPrice(totalIssuance: number, dollarPoolSize: number): number {
-    return dollarPoolSize / totalIssuance;
+    return calcPrice(issuanceInJOY, pool);
   }
 
   async exchanges(): Promise<Exchange[]> {
@@ -356,17 +408,17 @@ export class JoyApi {
     return burns;
   }
 
-  async burnAddressBalance(): Promise<number> {
+  async burnAddressBalanceInHAPI(): Promise<BN> {
     const burnAddrInfo = await this.api.query.system.account(BURN_ADDRESS);
 
     // An account needs to constantly have a minimum of EXISTENTIAL_DEPOSIT to be deemed active
     // and we therefore don't want to try and burn the whole balance but rather try to keep the
     // account balance at the EXISTENTIAL_DEPOSIT amount.
 
-    const freeBalance = burnAddrInfo.data.free.toNumber();
-    const EXISTENTIAL_DEPOSIT = this.api.consts.balances.existentialDeposit.toNumber();
+    const freeBalance = burnAddrInfo.data.free;
+    const EXISTENTIAL_DEPOSIT = this.api.consts.balances.existentialDeposit;
 
-    return Math.max(freeBalance - EXISTENTIAL_DEPOSIT, 0);
+    return BN.max(new BN(0), freeBalance.sub(EXISTENTIAL_DEPOSIT))
   }
 
   async executedBurnsAmount(): Promise<number> {
@@ -386,7 +438,7 @@ export class JoyApi {
   protected async fetchNetworkStatus(): Promise<NetworkStatus> {
     const [
       [
-        totalIssuance,
+        totalIssuanceInJOY,
         system,
         finalizedBlockHeight,
         council,
@@ -397,9 +449,10 @@ export class JoyApi {
         media,
         dollarPool,
       ], [
+        vestingLockedJOY,
         exchanges,
         burns,
-        burnAddressBalance,
+        burnAddressBalanceInHAPI,
         extecutedBurnsAmount,
         price,
         dollarPoolChanges,
@@ -409,7 +462,7 @@ export class JoyApi {
     ] = await Promise.all([
       // Split into chunks of 10, because the tsc compiler will use a tuple of size 10 as Promise.all generic 
       Promise.all([
-        this.totalIssuance(),
+        this.totalIssuanceInJOY(),
         this.systemData(),
         this.finalizedBlockHeight(),
         this.councilData(),
@@ -421,9 +474,10 @@ export class JoyApi {
         this.dollarPool()
       ]),
       Promise.all([
+        this.vestingLockedJOY(),
         this.exchanges(),
         this.burns(),
-        this.burnAddressBalance(),
+        this.burnAddressBalanceInHAPI(),
         this.executedBurnsAmount(),
         this.price(),
         this.dollarPoolChanges(),
@@ -432,7 +486,8 @@ export class JoyApi {
       ])
     ])
     return {
-      totalIssuance,
+      totalIssuance: totalIssuanceInJOY,
+      vestingLockedIssuance: vestingLockedJOY,
       system,
       finalizedBlockHeight,
       council,
@@ -444,7 +499,7 @@ export class JoyApi {
       dollarPool,
       exchanges,
       burns,
-      burnAddressBalance,
+      burnAddressBalance: this.toJOY(burnAddressBalanceInHAPI),
       extecutedBurnsAmount,
       price,
       dollarPoolChanges,
