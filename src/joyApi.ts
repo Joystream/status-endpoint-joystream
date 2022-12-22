@@ -1,11 +1,8 @@
 import '@joystream/types'
 import { WsProvider, ApiPromise } from "@polkadot/api";
-import { Burn, db, Exchange, PoolChange, Schema } from "./db";
 import { ChainProperties, Hash } from "@polkadot/types/interfaces";
-import { Keyring } from "@polkadot/keyring";
 import { config } from "dotenv";
 import BN from "bn.js";
-import { log } from './debug';
 import fetch from "cross-fetch"
 import { AnyJson } from "@polkadot/types/types";
 import {
@@ -14,24 +11,10 @@ import {
   PalletCouncilCouncilStageUpdate as CouncilStageUpdate,
   PalletVestingVestingInfo
 } from '@polkadot/types/lookup'
-import { calcPrice } from './utils';
-import { JOYSTREAM_ADDRESS_PREFIX } from '@joystream/types'
 import { Vec } from '@polkadot/types';
 
 // Init .env config
 config();
-
-// Burn key pair generation
-const burnSeed = process.env.BURN_ADDRESS_SEED;
-const keyring = new Keyring({ ss58Format: JOYSTREAM_ADDRESS_PREFIX });
-if (burnSeed === undefined) {
-  throw new Error("Missing BURN_ADDRESS_SEED in .env!");
-}
-keyring.addFromMnemonic(burnSeed);
-export const BURN_PAIR = keyring.getPairs()[0];
-export const BURN_ADDRESS = BURN_PAIR.address;
-
-log("BURN ADDRESS:", BURN_ADDRESS);
 
 // Query node
 if(process.env.QUERY_NODE === undefined){
@@ -77,11 +60,6 @@ type MediaData = {
   channels: number | null
 }
 
-type DollarPoolData = {
-  size: number
-  replenishAmount: number
-}
-
 type RuntimeData = {
   spec_name: string
   impl_name: string
@@ -100,14 +78,6 @@ type NetworkStatus = {
   roles: RolesData
   forum: ForumData
   media: MediaData
-  dollarPool: DollarPoolData
-  exchanges: Exchange[]
-  burns: Burn[]
-  burnAddressBalance: number
-  extecutedBurnsAmount: number
-  price: number
-  dollarPoolChanges: PoolChange[]
-  totalUSDPaid: number
   runtimeData: RuntimeData
 }
 
@@ -380,61 +350,6 @@ export class JoyApi {
     };
   }
 
-  async dollarPool(): Promise<DollarPoolData> {
-    const { sizeDollarPool = 0, replenishAmount = 0 } = (await db).valueOf() as Schema;
-
-    return {
-      size: sizeDollarPool,
-      replenishAmount,
-    };
-  }
-
-  async price(blockHash?: Hash, dollarPoolSize?: number): Promise<number> {
-    const issuanceInJOY = await this.totalIssuanceInJOY(blockHash);
-    const pool = dollarPoolSize !== undefined
-      ? dollarPoolSize
-      : (await this.dollarPool()).size;
-
-    return calcPrice(issuanceInJOY, pool);
-  }
-
-  async exchanges(): Promise<Exchange[]> {
-    const { exchanges = [] } = (await db).valueOf() as Schema;
-    return exchanges;
-  }
-
-  async burns(): Promise<Burn[]> {
-    const { burns = [] } = (await db).valueOf() as Schema;
-    return burns;
-  }
-
-  async burnAddressBalanceInHAPI(): Promise<BN> {
-    const burnAddrInfo = await this.api.query.system.account(BURN_ADDRESS);
-
-    // An account needs to constantly have a minimum of EXISTENTIAL_DEPOSIT to be deemed active
-    // and we therefore don't want to try and burn the whole balance but rather try to keep the
-    // account balance at the EXISTENTIAL_DEPOSIT amount.
-
-    const freeBalance = burnAddrInfo.data.free;
-    const EXISTENTIAL_DEPOSIT = this.api.consts.balances.existentialDeposit;
-
-    return BN.max(new BN(0), freeBalance.sub(EXISTENTIAL_DEPOSIT))
-  }
-
-  async executedBurnsAmount(): Promise<number> {
-    return (await this.burns()).reduce((sum, burn) => sum += burn.amount, 0);
-  }
-
-  async dollarPoolChanges(): Promise<PoolChange[]> {
-    const { poolChangeHistory } = (await db).valueOf() as Schema;
-    return poolChangeHistory || [];
-  }
-
-  async totalUSDPaid(): Promise<number> {
-    const { totalUSDPaid } = (await db).valueOf() as Schema
-    return totalUSDPaid || 0
-  }
-
   protected async fetchNetworkStatus(): Promise<NetworkStatus> {
     const [
       [
@@ -447,16 +362,8 @@ export class JoyApi {
         roles,
         forum,
         media,
-        dollarPool,
-      ], [
         vestingLockedJOY,
-        exchanges,
-        burns,
-        burnAddressBalanceInHAPI,
-        extecutedBurnsAmount,
-        price,
-        dollarPoolChanges,
-        totalUSDPaid,
+      ], [
         runtimeData
       ]
     ] = await Promise.all([
@@ -471,17 +378,9 @@ export class JoyApi {
         this.rolesData(),
         this.forumData(),
         this.mediaData(),
-        this.dollarPool()
+        this.vestingLockedJOY(),
       ]),
       Promise.all([
-        this.vestingLockedJOY(),
-        this.exchanges(),
-        this.burns(),
-        this.burnAddressBalanceInHAPI(),
-        this.executedBurnsAmount(),
-        this.price(),
-        this.dollarPoolChanges(),
-        this.totalUSDPaid(),
         this.runtimeData()
       ])
     ])
@@ -496,14 +395,6 @@ export class JoyApi {
       roles,
       forum,
       media,
-      dollarPool,
-      exchanges,
-      burns,
-      burnAddressBalance: this.toJOY(burnAddressBalanceInHAPI),
-      extecutedBurnsAmount,
-      price,
-      dollarPoolChanges,
-      totalUSDPaid,
       runtimeData
     }
   }
