@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { getStatus } from "./get-status";
+import { getBudgets } from "./get-budgets";
 import { log } from './debug';
 
 const app = express();
@@ -13,6 +14,12 @@ app.get("/", async (req, res) => {
   let status = await getStatus();
   res.setHeader("Content-Type", "application/json");
   res.send(status);
+});
+
+app.get('/budgets', async (req, res) => {
+  let budgets = await getBudgets();
+  res.setHeader("Content-Type", "application/json");
+  res.send(budgets);
 });
 
 app.listen(port, () => {
