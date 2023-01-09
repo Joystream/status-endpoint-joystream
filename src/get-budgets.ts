@@ -5,6 +5,8 @@ const api = new JoyApi();
 
 // Constants:
 const JOY_IN_DOLLARS = 0.06;
+const ERAS_IN_A_WEEK = 7 * 4;
+const BLOCKS_IN_A_WEEK = 10 * 60 * 24 * 7;
 
 // Types:
 type AvatarUri = string;
@@ -29,8 +31,6 @@ type QNWorkingGroup = {
 type QNCouncil = Array<{ member: { metadata : { avatar: null | { avatarUri: string } } } }>
 
 const calculateWeeklyDollarAmountFromBlockReward = (api: JoyApi, blockRewardInHAPI: number) => {
-  const BLOCKS_IN_A_WEEK = 10 * 60 * 24 * 7;
-
   const blockRewardInJOY = api.toJOY(new BN(blockRewardInHAPI));
   
   return blockRewardInJOY * BLOCKS_IN_A_WEEK * JOY_IN_DOLLARS;
@@ -91,6 +91,7 @@ const workingGroupBudgetInfo = async (api: JoyApi) => {
 const councilRewards = async (api: JoyApi) => {
   const councilorReward = await (await api.api.query.council.councilorReward()).toNumber();
   const announcingPeriodDurationInBlocks = await api.api.consts.council.announcingPeriodDuration.toNumber();
+  // TOOD: This calculation might need to be revisited.
   const councilorWeeklyRewardInUSD = (api.toJOY(new BN(councilorReward)) * announcingPeriodDurationInBlocks * JOY_IN_DOLLARS) / 2;
 
   const response = await api.qnQuery<{ councilMembers: QNCouncil }>(`
@@ -123,19 +124,25 @@ const councilRewards = async (api: JoyApi) => {
   return { icons, weeklyEarnings: councilorWeeklyRewardInUSD * response.councilMembers.length, numberOfWorkers: response.councilMembers.length };
 }
 
+const calculateValidatorRewards = async (api: JoyApi) => {
+  const era = await (await api.api.query.staking.currentEra()).unwrap().toNumber();
+  const previousEraValidatorReward = await (await api.api.query.staking.erasValidatorReward(era - 1)).unwrap().toNumber();
+  const validators = await (await api.api.query.session.validators()).toJSON() as string[];
+  const totalRewardsInDollars = api.toJOY(new BN(previousEraValidatorReward)) * ERAS_IN_A_WEEK * JOY_IN_DOLLARS;
+
+  return { icons: [], weeklyEarnings: totalRewardsInDollars, numberOfWorkers: validators.length }
+}
+
 export async function getBudgets() {
   await api.init;
 
-  // const validatorRewards = await api.calculateValidatorRewards(4)
-
   const workingGroups = await workingGroupBudgetInfo(api);
   const council = await councilRewards(api);
+  const validators = await calculateValidatorRewards(api)
 
   return {
-    hello: "world",
     workingGroups,
-    council
-    // validatorRewards,
-    // councilRewards
+    council,
+    validators
   };
 }
