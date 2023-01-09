@@ -4,7 +4,6 @@ import { JoyApi } from "./joyApi";
 const api = new JoyApi();
 
 // Constants:
-const JOY_IN_DOLLARS = 0.06;
 const ERAS_IN_A_WEEK = 7 * 4;
 const BLOCKS_IN_A_WEEK = 10 * 60 * 24 * 7;
 
@@ -19,7 +18,7 @@ type GroupBudget = {
 
 const NonDescriptWorkingGroupMap: { [key: string] : string } = {
   operationsWorkingGroupAlpha: "buildersWorkingGroup",
-  operationsWorkingGroupBeta: "hrWorkingGRoup",
+  operationsWorkingGroupBeta: "hrWorkingGroup",
   operationsWorkingGroupGamma: "marketingWorkingGroup"
 }
 
@@ -30,10 +29,10 @@ type QNWorkingGroup = {
 
 type QNCouncil = Array<{ member: { metadata : { avatar: null | { avatarUri: string } } } }>
 
-const calculateWeeklyDollarAmountFromBlockReward = (api: JoyApi, blockRewardInHAPI: number) => {
+const calculateWeeklyJOYAmountFromBlockReward = (api: JoyApi, blockRewardInHAPI: number) => {
   const blockRewardInJOY = api.toJOY(new BN(blockRewardInHAPI));
   
-  return blockRewardInJOY * BLOCKS_IN_A_WEEK * JOY_IN_DOLLARS;
+  return blockRewardInJOY * BLOCKS_IN_A_WEEK;
 }
 
 const workingGroupBudgetInfo = async (api: JoyApi) => {
@@ -77,7 +76,7 @@ const workingGroupBudgetInfo = async (api: JoyApi) => {
       // if(worker.isLead)
       //   continue
       
-      groupBudgets[workingGroupName].weeklyEarnings += calculateWeeklyDollarAmountFromBlockReward(api, Number(worker.rewardPerBlock));
+      groupBudgets[workingGroupName].weeklyEarnings += calculateWeeklyJOYAmountFromBlockReward(api, Number(worker.rewardPerBlock));
       
       if(worker.membership.metadata.avatar)
         groupBudgets[workingGroupName].icons.push(worker.membership.metadata.avatar.avatarUri)
@@ -91,8 +90,8 @@ const workingGroupBudgetInfo = async (api: JoyApi) => {
 const councilRewards = async (api: JoyApi) => {
   const councilorReward = await (await api.api.query.council.councilorReward()).toNumber();
   const announcingPeriodDurationInBlocks = await api.api.consts.council.announcingPeriodDuration.toNumber();
-  // TOOD: This calculation might need to be revisited.
-  const councilorWeeklyRewardInUSD = (api.toJOY(new BN(councilorReward)) * announcingPeriodDurationInBlocks * JOY_IN_DOLLARS) / 2;
+  // TODO: This calculation might need to be revisited.
+  const councilorWeeklyRewardInJOY = (api.toJOY(new BN(councilorReward)) * announcingPeriodDurationInBlocks) / 2;
 
   const response = await api.qnQuery<{ councilMembers: QNCouncil }>(`
     {
@@ -121,16 +120,16 @@ const councilRewards = async (api: JoyApi) => {
       icons.push(avatar.avatarUri);
   }
 
-  return { icons, weeklyEarnings: councilorWeeklyRewardInUSD * response.councilMembers.length, numberOfWorkers: response.councilMembers.length };
+  return { icons, weeklyEarnings: councilorWeeklyRewardInJOY * response.councilMembers.length, numberOfWorkers: response.councilMembers.length };
 }
 
 const calculateValidatorRewards = async (api: JoyApi) => {
   const era = await (await api.api.query.staking.currentEra()).unwrap().toNumber();
   const previousEraValidatorReward = await (await api.api.query.staking.erasValidatorReward(era - 1)).unwrap().toNumber();
   const validators = await (await api.api.query.session.validators()).toJSON() as string[];
-  const totalRewardsInDollars = api.toJOY(new BN(previousEraValidatorReward)) * ERAS_IN_A_WEEK * JOY_IN_DOLLARS;
+  const totalRewardsInJOY = api.toJOY(new BN(previousEraValidatorReward)) * ERAS_IN_A_WEEK;
 
-  return { icons: [], weeklyEarnings: totalRewardsInDollars, numberOfWorkers: validators.length }
+  return { icons: [], weeklyEarnings: totalRewardsInJOY, numberOfWorkers: validators.length }
 }
 
 export async function getBudgets() {
@@ -141,7 +140,7 @@ export async function getBudgets() {
   const validators = await calculateValidatorRewards(api)
 
   return {
-    workingGroups,
+    ...workingGroups,
     council,
     validators
   };
