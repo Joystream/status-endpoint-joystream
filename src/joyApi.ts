@@ -119,7 +119,14 @@ export class JoyApi {
       return hapi.toNumber() / Math.pow(10, this.tokenDecimals)
     } catch {
       // > 900719 JOY - we discard the decimals
-      return hapi.div(new BN(Math.pow(10, this.tokenDecimals))).toNumber()
+      const joyValue = hapi.div(new BN(Math.pow(10, this.tokenDecimals)))
+
+      // TODO: Temporary "fix". Root of problem needs to be found!
+      // (context: function vestingLockedJOY() produces a *very* large value)
+      if(joyValue.gte(new BN(Number.MAX_SAFE_INTEGER)))
+        return Number.MAX_SAFE_INTEGER
+
+      return joyValue.toNumber()
     }
   }
 

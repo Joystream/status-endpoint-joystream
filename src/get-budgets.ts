@@ -3,9 +3,13 @@ import { JoyApi } from "./joyApi";
 
 const api = new JoyApi();
 
+// TODO: These constants assume perfect uptime and are values in the optimal case. It might make
+// sense to update the implementation to take the actual variability into account down the line.
+
 // Constants:
 const ERAS_IN_A_WEEK = 7 * 4;
 const BLOCKS_IN_A_WEEK = 10 * 60 * 24 * 7;
+const MAX_ERA_POINTS_TOTAL_VALUE = 72000;
 
 // Types:
 type AvatarUri = string;
@@ -72,10 +76,6 @@ const workingGroupBudgetInfo = async (api: JoyApi) => {
       continue;
 
     for (let worker of workingGroup.workers) {
-      // TODO: Do we want to disregard the leads?
-      // if(worker.isLead)
-      //   continue
-      
       groupBudgets[workingGroupName].weeklyEarnings += calculateWeeklyJOYAmountFromBlockReward(api, Number(worker.rewardPerBlock));
       
       if(worker.membership.metadata.avatar)
@@ -89,9 +89,7 @@ const workingGroupBudgetInfo = async (api: JoyApi) => {
 
 const councilRewards = async (api: JoyApi) => {
   const councilorReward = await (await api.api.query.council.councilorReward()).toNumber();
-  const announcingPeriodDurationInBlocks = await api.api.consts.council.announcingPeriodDuration.toNumber();
-  // TODO: This calculation might need to be revisited.
-  const councilorWeeklyRewardInJOY = (api.toJOY(new BN(councilorReward)) * announcingPeriodDurationInBlocks) / 2;
+  const councilorWeeklyRewardInJOY = (api.toJOY(new BN(councilorReward)) * BLOCKS_IN_A_WEEK);
 
   const response = await api.qnQuery<{ councilMembers: QNCouncil }>(`
     {
@@ -124,10 +122,11 @@ const councilRewards = async (api: JoyApi) => {
 }
 
 const calculateValidatorRewards = async (api: JoyApi) => {
-  const era = await (await api.api.query.staking.currentEra()).unwrap().toNumber();
-  const previousEraValidatorReward = await (await api.api.query.staking.erasValidatorReward(era - 1)).unwrap().toNumber();
+  const era = await (await api.api.query.staking.activeEra()).unwrap().index.toNumber() - 1;
+  const previousEraValidatorReward = await (await api.api.query.staking.erasValidatorReward(era)).unwrap().toNumber();
+  const previousEraValidatorPoints = await (await api.api.query.staking.erasRewardPoints(era)).total.toNumber();
   const validators = await (await api.api.query.session.validators()).toJSON() as string[];
-  const totalRewardsInJOY = api.toJOY(new BN(previousEraValidatorReward)) * ERAS_IN_A_WEEK;
+  const totalRewardsInJOY = (api.toJOY(new BN(previousEraValidatorReward)) * ERAS_IN_A_WEEK) * (previousEraValidatorPoints / MAX_ERA_POINTS_TOTAL_VALUE);
 
   return { icons: [], weeklyEarnings: totalRewardsInJOY, numberOfWorkers: validators.length }
 }
