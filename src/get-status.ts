@@ -9,11 +9,3 @@ export async function getStatus() {
 
   return status;
 }
-
-export async function getPrice() {
-  await api.init;
-
-  const price = await api.price()
-
-  return { price };
-}
