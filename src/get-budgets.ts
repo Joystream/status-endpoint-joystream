@@ -91,9 +91,10 @@ const councilRewards = async (api: JoyApi) => {
   const councilorReward = await (await api.api.query.council.councilorReward()).toNumber();
   const councilorWeeklyRewardInJOY = (api.toJOY(new BN(councilorReward)) * BLOCKS_IN_A_WEEK);
 
+  // TODO: Quick fix. Find a more reliable way to do this.
   const response = await api.qnQuery<{ councilMembers: QNCouncil }>(`
     {
-      councilMembers {
+      councilMembers(orderBy: lastPaymentBlock_DESC, limit: 3) {
         member {
           metadata {
             avatar {
