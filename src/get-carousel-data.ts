@@ -23,6 +23,9 @@ type NFT = {
 };
 
 type Proposal = {
+  details: {
+    __typename: string;
+  };
   title: string;
   createdAt: string;
   isFinalized: boolean;
@@ -77,6 +80,9 @@ const getCarouselData = async () => {
         }
       },
       proposals(limit: 10, orderBy: createdAt_DESC) {
+        details {
+          __typename
+        }
         title
         createdAt
         isFinalized
@@ -133,11 +139,17 @@ const getCarouselData = async () => {
           avatar: { avatarUri },
         },
       },
+      statusSetAtTime,
+      createdAt,
     }) => ({
       title,
       status: status.substring(PROPOSAL_STATUS.length),
       link: `https://pioneerapp.xyz/#/proposals/preview/${id}`,
       img: avatarUri,
+      statusSetAtTime,
+      createdAt,
+      // TODO: Implement following line:
+      // proposalExpiresAt:
     })
   );
 
