@@ -43,9 +43,105 @@ type Proposal = {
   };
 };
 
+type PropsalParameter = {
+  votingPeriod: number;
+  gracePeriod: number;
+  approvalQuorumPercentage: number;
+  approvalThresholdPercentage: number;
+  slashingQuorumPercentage: number;
+  slashingThresholdPercentage: number;
+  requiredStake: number;
+  constitutionality: number;
+};
+
+const BLOCK_INTERVAL_IN_SECONDS = 6;
+
 const PROPOSAL_STATUS = "ProposalStatus";
+const GRACING = "Gracing";
+const DECIDING = "Deciding";
+
+const ProposalParameterString = [
+  "amendConstitutionProposalParameters",
+  "cancelWorkingGroupLeadOpeningProposalParameters",
+  "createWorkingGroupLeadOpeningProposalParameters",
+  "decreaseWorkingGroupLeadStakeProposalParameters",
+  "fillWorkingGroupOpeningProposalParameters",
+  "fundingRequestProposalMaxAccounts",
+  "fundingRequestProposalMaxTotalAmount",
+  "fundingRequestProposalParameters",
+  "runtimeUpgradeProposalParameters",
+  "setCouncilBudgetIncrementProposalParameters",
+  "setCouncilorRewardProposalParameters",
+  "setInitialInvitationBalanceProposalParameters",
+  "setInvitationCountProposalParameters",
+  "setMaxValidatorCountProposalMaxValidators",
+  "setMaxValidatorCountProposalParameters",
+  "setMembershipLeadInvitationQuotaProposalParameters",
+  "setMembershipPriceProposalParameters",
+  "setReferralCutProposalParameters",
+  "setWorkingGroupLeadRewardProposalParameters",
+  "signalProposalParameters",
+  "slashWorkingGroupLeadProposalParameters",
+  "terminateWorkingGroupLeadProposalParameters",
+  "updateChannelPayoutsProposalParameters",
+  "updateGlobalNftLimitProposalParameters",
+  "updateWorkingGroupBudgetProposalParameters",
+  "vetoProposalProposalParameters",
+] as const;
+
+const getProposalParameterKeyFromType = (string: string) => {
+  // NOTE: The last replace here is because of a mismatch between the type fetched
+  // from graphql and the key actually used to query the necessary proposal data.
+
+  return (string.charAt(0).toLowerCase() + string.slice(1))
+    .replace("Details", "Parameters")
+    .replace(
+      "fillWorkingGroupLeadOpeningProposalParameters",
+      "fillWorkingGroupOpeningProposalParameters"
+    ) as unknown as typeof ProposalParameterString[number];
+};
+
+const getStatusFromStatusType = (status: string) => status.substring(PROPOSAL_STATUS.length);
+
+const getSecondsFromBlocks = (blocks: number) => blocks * BLOCK_INTERVAL_IN_SECONDS;
+
+const incorporateProposalExpiryDate = (proposals: Array<Proposal>) => {
+  return Promise.all(
+    proposals.map(async (proposal) => {
+      const {
+        details: { __typename: proposalType },
+        status: { __typename: statusType },
+        statusSetAtTime,
+      } = proposal;
+
+      const status = getStatusFromStatusType(statusType);
+      const statusSetAtDate = new Date(statusSetAtTime);
+      const proposalParameterKey = getProposalParameterKeyFromType(proposalType);
+      const proposalParameter = (
+        await api.api.consts.proposalsCodex[proposalParameterKey]
+      ).toJSON() as PropsalParameter;
+
+      if (status === GRACING) {
+        statusSetAtDate.setSeconds(getSecondsFromBlocks(proposalParameter.gracePeriod));
+      }
+
+      if (status === DECIDING) {
+        statusSetAtDate.setSeconds(getSecondsFromBlocks(proposalParameter.votingPeriod));
+      }
+
+      return {
+        ...proposal,
+        ...((status === DECIDING || status === GRACING) && {
+          timeLeftUntil: statusSetAtDate.toISOString(),
+        }),
+      };
+    })
+  );
+};
 
 const getCarouselData = async () => {
+  await api.init;
+
   const result: { nfts: Array<{}>; proposals: Array<{}> } = {
     nfts: [],
     proposals: [],
@@ -79,7 +175,7 @@ const getCarouselData = async () => {
           }
         }
       },
-      proposals(limit: 10, orderBy: createdAt_DESC) {
+      proposals(limit: 10, orderBy: statusSetAtTime_DESC) {
         details {
           __typename
         }
@@ -129,10 +225,10 @@ const getCarouselData = async () => {
     })
   );
 
-  result.proposals = response.proposals.map(
+  result.proposals = (await incorporateProposalExpiryDate(response.proposals)).map(
     ({
       title,
-      status: { __typename: status },
+      status: { __typename: statusType },
       id,
       creator: {
         metadata: {
@@ -141,15 +237,15 @@ const getCarouselData = async () => {
       },
       statusSetAtTime,
       createdAt,
+      timeLeftUntil,
     }) => ({
       title,
-      status: status.substring(PROPOSAL_STATUS.length),
+      status: getStatusFromStatusType(statusType),
       link: `https://pioneerapp.xyz/#/proposals/preview/${id}`,
       img: avatarUri,
       statusSetAtTime,
       createdAt,
-      // TODO: Implement following line:
-      // proposalExpiresAt:
+      timeLeftUntil,
     })
   );
 
