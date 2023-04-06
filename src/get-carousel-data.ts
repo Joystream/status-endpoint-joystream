@@ -43,7 +43,7 @@ type Proposal = {
   };
 };
 
-type PropsalParameter = {
+type ProposalParameter = {
   votingPeriod: number;
   gracePeriod: number;
   approvalQuorumPercentage: number;
@@ -119,7 +119,7 @@ const incorporateProposalExpiryDate = (proposals: Array<Proposal>) => {
       const proposalParameterKey = getProposalParameterKeyFromType(proposalType);
       const proposalParameter = (
         await api.api.consts.proposalsCodex[proposalParameterKey]
-      ).toJSON() as PropsalParameter;
+      ).toJSON() as ProposalParameter;
 
       if (status === GRACING) {
         statusSetAtDate.setSeconds(getSecondsFromBlocks(proposalParameter.gracePeriod));
@@ -218,7 +218,7 @@ const getCarouselData = async () => {
     }) => ({
       nftTitle,
       channelName,
-      joyAmount: (Number(lastSalePrice) / 10_000_000_000).toString(),
+      joyAmount: Math.round(Number(lastSalePrice) / 10_000_000_000).toString(),
       lastSaleDate,
       imageUrl: `${distributionBuckets[0].operators[0].metadata.nodeEndpoint}api/v1/assets/${thumbnailPhotoId}`,
       videoUrl: `https://gleev.xyz/video/${videoId}`,
