@@ -43,6 +43,14 @@ type Proposal = {
   };
 };
 
+type ChannelPaymentEvent = {
+  amount: string;
+  payeeChannel: {
+    id: string;
+  };
+  createdAt: string;
+};
+
 type ProposalParameter = {
   votingPeriod: number;
   gracePeriod: number;
@@ -142,32 +150,38 @@ const incorporateProposalExpiryDate = (proposals: Array<Proposal>) => {
 const getCarouselData = async () => {
   await api.init;
 
-  const result: { nfts: Array<{}>; proposals: Array<{}> } = {
+  const result: { nfts: Array<{}>; proposals: Array<{}>; payouts: Array<{}> } = {
     nfts: [],
     proposals: [],
+    payouts: [],
   };
 
   const response = await api.qnQuery<{
     ownedNfts: Array<NFT>;
     proposals: Array<Proposal>;
+    channelPaymentMadeEvents: Array<ChannelPaymentEvent>;
   }>(`
     {
-      ownedNfts(limit: 10, orderBy: lastSaleDate_DESC, where: { lastSalePrice_gt: 0 }){
-        lastSaleDate,
-        lastSalePrice,
+      ownedNfts(
+        limit: 10
+        orderBy: lastSaleDate_DESC
+        where: { lastSalePrice_gt: 0 }
+      ) {
+        lastSaleDate
+        lastSalePrice
         creatorChannel {
           title
-        },
+        }
         video {
-          id,
-          title,
-          thumbnailPhotoId,
+          id
+          title
+          thumbnailPhotoId
           thumbnailPhoto {
             storageBag {
               distributionBuckets {
                 operators {
                   metadata {
-                    nodeEndpoint,
+                    nodeEndpoint
                   }
                 }
               }
@@ -193,6 +207,39 @@ const getCarouselData = async () => {
               ... on AvatarUri {
                 avatarUri
               }
+            }
+          }
+        }
+      },
+      channelPaymentMadeEvents {
+        id
+        createdAt
+        inBlock
+        amount
+        rationale
+        payeeChannel {
+          id
+          title
+          rewardAccount
+          ownerMember {
+            id
+            handle
+          }
+        }
+        payer {
+          id
+          handle
+          controllerAccount
+        }
+        paymentContext {
+          ... on PaymentContextVideo {
+            video {
+              id
+            }
+          }
+          ... on PaymentContextChannel {
+            channel {
+              id
             }
           }
         }
@@ -246,6 +293,14 @@ const getCarouselData = async () => {
       statusSetAtTime,
       createdAt,
       timeLeftUntil,
+    })
+  );
+
+  result.payouts = response.channelPaymentMadeEvents.map(
+    ({ amount, payeeChannel: { id: channelId }, createdAt }) => ({
+      joyAmount: Math.round(Number(amount) / 10_000_000_000).toString(),
+      channelId,
+      createdAt,
     })
   );
 
