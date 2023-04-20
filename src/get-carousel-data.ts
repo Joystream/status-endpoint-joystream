@@ -46,7 +46,15 @@ type Proposal = {
 type ChannelPaymentEvent = {
   amount: string;
   payeeChannel: {
-    id: string;
+    title: string;
+    avatarPhoto: {
+      id: string;
+      storageBag: {
+        distributionBuckets: Array<{
+          operators: Array<{ metadata: { nodeEndpoint: string } }>;
+        }>;
+      };
+    };
   };
   createdAt: string;
 };
@@ -225,6 +233,18 @@ const getCarouselData = async () => {
             id
             handle
           }
+          avatarPhoto {
+            id,
+            storageBag {
+              distributionBuckets {
+                operators {
+                  metadata {
+                    nodeEndpoint
+                  }
+                }
+              }
+            }
+          }
         }
         payer {
           id
@@ -297,10 +317,13 @@ const getCarouselData = async () => {
   );
 
   result.payouts = response.channelPaymentMadeEvents.map(
-    ({ amount, payeeChannel: { id: channelId }, createdAt }) => ({
+    ({ amount, payeeChannel: { avatarPhoto, title }, createdAt }) => ({
       joyAmount: Math.round(Number(amount) / 10_000_000_000).toString(),
-      channelId,
       createdAt,
+      imageUrl: avatarPhoto?.storageBag
+        ? `${avatarPhoto.storageBag.distributionBuckets[0].operators[0].metadata.nodeEndpoint}api/v1/assets/${avatarPhoto.id}`
+        : "",
+      channelName: title,
     })
   );
 
