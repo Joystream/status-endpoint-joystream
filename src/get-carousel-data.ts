@@ -46,6 +46,7 @@ type Proposal = {
 type ChannelPaymentEvent = {
   amount: string;
   payeeChannel: {
+    id: string;
     title: string;
     avatarPhoto: {
       id: string;
@@ -317,13 +318,14 @@ const getCarouselData = async () => {
   );
 
   result.payouts = response.channelPaymentMadeEvents.map(
-    ({ amount, payeeChannel: { avatarPhoto, title }, createdAt }) => ({
+    ({ amount, payeeChannel: { id: channelId, avatarPhoto, title }, createdAt }) => ({
       joyAmount: Math.round(Number(amount) / 10_000_000_000).toString(),
       createdAt,
       imageUrl: avatarPhoto?.storageBag
         ? `${avatarPhoto.storageBag.distributionBuckets[0].operators[0].metadata.nodeEndpoint}api/v1/assets/${avatarPhoto.id}`
         : "",
       channelName: title,
+      channelUrl: `https://gleev.xyz/channel/${channelId}`,
     })
   );
 
