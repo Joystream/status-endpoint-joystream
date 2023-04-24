@@ -44,6 +44,7 @@ type Proposal = {
 };
 
 type ChannelPaymentEvent = {
+  createdAt: string;
   amount: string;
   payeeChannel: {
     id: string;
@@ -57,7 +58,6 @@ type ChannelPaymentEvent = {
       };
     };
   };
-  createdAt: string;
 };
 
 type ProposalParameter = {
@@ -115,7 +115,7 @@ const getProposalParameterKeyFromType = (string: string) => {
     .replace(
       "fillWorkingGroupLeadOpeningProposalParameters",
       "fillWorkingGroupOpeningProposalParameters"
-    ) as unknown as typeof ProposalParameterString[number];
+    ) as unknown as (typeof ProposalParameterString)[number];
 };
 
 const getStatusFromStatusType = (status: string) => status.substring(PROPOSAL_STATUS.length);
@@ -220,12 +220,9 @@ const getCarouselData = async () => {
           }
         }
       },
-      channelPaymentMadeEvents {
-        id
+      channelPaymentMadeEvents(limit: 10, orderBy: createdAt_ASC) {
         createdAt
-        inBlock
         amount
-        rationale
         payeeChannel {
           id
           title
@@ -244,23 +241,6 @@ const getCarouselData = async () => {
                   }
                 }
               }
-            }
-          }
-        }
-        payer {
-          id
-          handle
-          controllerAccount
-        }
-        paymentContext {
-          ... on PaymentContextVideo {
-            video {
-              id
-            }
-          }
-          ... on PaymentContextChannel {
-            channel {
-              id
             }
           }
         }
