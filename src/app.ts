@@ -13,7 +13,7 @@ const port = process.env.PORT || 8081;
 app.use(cors());
 app.use(express.json());
 
-app.get("/", async (req, res) => {
+app.get("/", cache("1 hour"), async (req, res) => {
   let status = await getStatus();
   res.setHeader("Content-Type", "application/json");
   res.send(status);

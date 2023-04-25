@@ -205,9 +205,19 @@ export class JoyApi {
     return (await this.curators()).length;
   }
 
-  async dataObjectsStats(): Promise<{ count: number, size: number }> {
+  async dataObjectsStats(
+    storageDataObjects?: Array<{ size: string }>
+  ): Promise<{ count: number; size: number }> {
+    const stats = { count: 0, size: 0 }
+
+    if (storageDataObjects) {
+      stats.count = storageDataObjects.length
+      stats.size = storageDataObjects.reduce((prev, { size }) => prev + Number(size), 0)
+
+      return stats
+    }
+
     // Supports size up to 8192 TB (because JS MAX_SAFE_INTEGER is 9007199254740991)
-    const stats = { count: 0, size: 0 };
     (await this.api.query.storage.bags.entries())
       .forEach(([, bag]) => {
         stats.count += bag.objectsNumber.toNumber()
@@ -333,21 +343,25 @@ export class JoyApi {
   }
 
   async mediaData(): Promise<MediaData> {
-    const [qnData, activeCurators, { count: dataObjectsCount, size: dataObjectsSize }] = await Promise.all([
+    const [qnData, activeCurators] = await Promise.all([
       this.qnQuery<{
-        channelsConnection: { totalCount: number },
+        channelsConnection: { totalCount: number };
+        storageDataObjects: Array<{ size: string }>;
       }>(`
         {
           channelsConnection {
             totalCount
           }
+          storageDataObjects(limit: 99999999, where: { deletedAt_all: false }) {
+            size
+          }
         }
       `),
-      this.activeCurators(),
-      this.dataObjectsStats()
+      this.activeCurators()
     ]);
 
     const channels = qnData ? qnData.channelsConnection.totalCount : (await this.api.query.content.channelById.keys()).length
+    const { count: dataObjectsCount, size: dataObjectsSize } = await this.dataObjectsStats(qnData?.storageDataObjects)
 
     return {
       media_files: dataObjectsCount,
