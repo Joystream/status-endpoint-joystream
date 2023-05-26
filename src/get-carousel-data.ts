@@ -220,7 +220,7 @@ const getCarouselData = async () => {
           }
         }
       },
-      channelPaymentMadeEvents(limit: 10, orderBy: createdAt_ASC) {
+      channelPaymentMadeEvents(limit: 10, orderBy: createdAt_DESC) {
         createdAt
         amount
         payeeChannel {
