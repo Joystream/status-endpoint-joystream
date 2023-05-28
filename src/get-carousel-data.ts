@@ -1,4 +1,7 @@
+import axios from "axios";
 import { JoyApi } from "./joyApi";
+
+const NUMBER_OF_ITMES_TO_FETCH = 10;
 
 const api = new JoyApi();
 
@@ -156,6 +159,34 @@ const incorporateProposalExpiryDate = (proposals: Array<Proposal>) => {
   );
 };
 
+const filterPayoutsByValidImage = async (payouts: Array<ChannelPaymentEvent>) => {
+  const filteredPayouts: Array<ChannelPaymentEvent> = [];
+
+  for (const payout of payouts) {
+    const {
+      payeeChannel: { avatarPhoto },
+    } = payout;
+
+    if (!avatarPhoto?.storageBag) {
+      continue;
+    }
+
+    const url = `${avatarPhoto.storageBag.distributionBuckets[0].operators[0].metadata.nodeEndpoint}api/v1/assets/${avatarPhoto.id}`;
+
+    try {
+      await axios.head(url);
+    } catch (e: unknown) {
+      // Axios throws an error if the response is not 2xx. We can use this
+      // and catch the error to filter out payouts with invalid images.
+      continue;
+    }
+
+    filteredPayouts.push(payout);
+  }
+
+  return filteredPayouts.slice(0, NUMBER_OF_ITMES_TO_FETCH);
+};
+
 const getCarouselData = async () => {
   await api.init;
 
@@ -172,7 +203,7 @@ const getCarouselData = async () => {
   }>(`
     {
       ownedNfts(
-        limit: 10
+        limit: ${NUMBER_OF_ITMES_TO_FETCH}
         orderBy: lastSaleDate_DESC
         where: { lastSalePrice_gt: 0 }
       ) {
@@ -198,7 +229,7 @@ const getCarouselData = async () => {
           }
         }
       },
-      proposals(limit: 10, orderBy: statusSetAtTime_DESC) {
+      proposals(limit: ${NUMBER_OF_ITMES_TO_FETCH}, orderBy: statusSetAtTime_DESC) {
         details {
           __typename
         }
@@ -220,7 +251,7 @@ const getCarouselData = async () => {
           }
         }
       },
-      channelPaymentMadeEvents(limit: 10, orderBy: createdAt_DESC) {
+      channelPaymentMadeEvents(limit: 30, orderBy: createdAt_DESC) {
         createdAt
         amount
         payeeChannel {
@@ -297,7 +328,7 @@ const getCarouselData = async () => {
     })
   );
 
-  result.payouts = response.channelPaymentMadeEvents.map(
+  result.payouts = (await filterPayoutsByValidImage(response.channelPaymentMadeEvents)).map(
     ({ amount, payeeChannel: { id: channelId, avatarPhoto, title }, createdAt }) => ({
       joyAmount: Math.round(Number(amount) / 10_000_000_000).toString(),
       createdAt,

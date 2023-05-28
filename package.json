@@ -34,6 +34,7 @@
     "@types/bn.js": "^5.1.1",
     "@types/locks": "^0.2.1",
     "apicache": "^1.6.3",
+    "axios": "^1.4.0",
     "bn.js": "5.2.1",
     "cors": "^2.8.5",
     "cross-fetch": "^3.0.6",
