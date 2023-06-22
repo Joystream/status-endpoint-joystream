@@ -5,6 +5,12 @@ const NUMBER_OF_ITMES_TO_FETCH = 10;
 
 const api = new JoyApi();
 
+type StorageBag = {
+  distributionBuckets: Array<{
+    operators: Array<{ metadata: { nodeEndpoint: string } }>;
+  }>;
+};
+
 type NFT = {
   lastSaleDate: string;
   lastSalePrice: string;
@@ -16,11 +22,7 @@ type NFT = {
     title: string;
     thumbnailPhotoId: string;
     thumbnailPhoto: {
-      storageBag: {
-        distributionBuckets: Array<{
-          operators: Array<{ metadata: { nodeEndpoint: string } }>;
-        }>;
-      };
+      storageBag: StorageBag;
     };
   };
 };
@@ -54,11 +56,7 @@ type ChannelPaymentEvent = {
     title: string;
     avatarPhoto: {
       id: string;
-      storageBag: {
-        distributionBuckets: Array<{
-          operators: Array<{ metadata: { nodeEndpoint: string } }>;
-        }>;
-      };
+      storageBag: StorageBag;
     };
   };
 };
@@ -159,32 +157,29 @@ const incorporateProposalExpiryDate = (proposals: Array<Proposal>) => {
   );
 };
 
-const filterPayoutsByValidImage = async (payouts: Array<ChannelPaymentEvent>) => {
-  const filteredPayouts: Array<ChannelPaymentEvent> = [];
+const findAllValidPotentialAssets = async (storageBag?: StorageBag, assetId?: string) => {
+  if (!storageBag || !assetId) return [];
 
-  for (const payout of payouts) {
-    const {
-      payeeChannel: { avatarPhoto },
-    } = payout;
+  const resultArr = [];
 
-    if (!avatarPhoto?.storageBag) {
-      continue;
-    }
+  for (let { operators } of storageBag.distributionBuckets) {
+    if (operators.length === 0) continue;
 
-    const url = `${avatarPhoto.storageBag.distributionBuckets[0].operators[0].metadata.nodeEndpoint}api/v1/assets/${avatarPhoto.id}`;
+    const nodeEndpoint = operators[0].metadata.nodeEndpoint;
+    const url = `${nodeEndpoint}api/v1/assets/${assetId}`;
 
     try {
-      await axios.head(url);
+      await axios.head(url, { timeout: 1000 });
+
+      resultArr.push(url);
     } catch (e: unknown) {
       // Axios throws an error if the response is not 2xx. We can use this
       // and catch the error to filter out payouts with invalid images.
       continue;
     }
-
-    filteredPayouts.push(payout);
   }
 
-  return filteredPayouts.slice(0, NUMBER_OF_ITMES_TO_FETCH);
+  return resultArr;
 };
 
 const getCarouselData = async () => {
@@ -281,27 +276,27 @@ const getCarouselData = async () => {
 
   if (!response) return result;
 
-  result.nfts = response.ownedNfts.map(
-    ({
-      lastSaleDate,
-      lastSalePrice,
-      creatorChannel: { title: channelName },
-      video: {
-        id: videoId,
-        title: nftTitle,
-        thumbnailPhotoId,
-        thumbnailPhoto: {
-          storageBag: { distributionBuckets },
+  result.nfts = await Promise.all(
+    response.ownedNfts.map(
+      async ({
+        lastSaleDate,
+        lastSalePrice,
+        creatorChannel: { title: channelName },
+        video: {
+          id: videoId,
+          title: nftTitle,
+          thumbnailPhotoId,
+          thumbnailPhoto: { storageBag },
         },
-      },
-    }) => ({
-      nftTitle,
-      channelName,
-      joyAmount: Math.round(Number(lastSalePrice) / 10_000_000_000).toString(),
-      lastSaleDate,
-      imageUrl: `${distributionBuckets[0].operators[0].metadata.nodeEndpoint}api/v1/assets/${thumbnailPhotoId}`,
-      videoUrl: `https://gleev.xyz/video/${videoId}`,
-    })
+      }) => ({
+        nftTitle,
+        channelName,
+        joyAmount: Math.round(Number(lastSalePrice) / 10_000_000_000).toString(),
+        lastSaleDate,
+        imageUrl: await findAllValidPotentialAssets(storageBag, thumbnailPhotoId),
+        videoUrl: `https://gleev.xyz/video/${videoId}`,
+      })
+    )
   );
 
   result.proposals = (await incorporateProposalExpiryDate(response.proposals)).map(
@@ -328,17 +323,21 @@ const getCarouselData = async () => {
     })
   );
 
-  result.payouts = (await filterPayoutsByValidImage(response.channelPaymentMadeEvents)).map(
-    ({ amount, payeeChannel: { id: channelId, avatarPhoto, title }, createdAt }) => ({
-      joyAmount: Math.round(Number(amount) / 10_000_000_000).toString(),
-      createdAt,
-      imageUrl: avatarPhoto?.storageBag
-        ? `${avatarPhoto.storageBag.distributionBuckets[0].operators[0].metadata.nodeEndpoint}api/v1/assets/${avatarPhoto.id}`
-        : "",
-      channelName: title,
-      channelUrl: `https://gleev.xyz/channel/${channelId}`,
-    })
-  );
+  result.payouts = (
+    await Promise.all(
+      response.channelPaymentMadeEvents.map(
+        async ({ amount, payeeChannel: { id: channelId, avatarPhoto, title }, createdAt }) => ({
+          joyAmount: Math.round(Number(amount) / 10_000_000_000).toString(),
+          createdAt,
+          imageUrl: await findAllValidPotentialAssets(avatarPhoto?.storageBag, avatarPhoto?.id),
+          channelName: title,
+          channelUrl: `https://gleev.xyz/channel/${channelId}`,
+        })
+      )
+    )
+  )
+    .filter((payout: any) => payout.imageUrl.length > 0)
+    .slice(0, NUMBER_OF_ITMES_TO_FETCH);
 
   return result;
 };
