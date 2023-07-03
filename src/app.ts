@@ -5,6 +5,7 @@ import { getStatus } from "./get-status";
 import { getBudgets } from "./get-budgets";
 import { log } from "./debug";
 import getCarouselData from "./get-carousel-data";
+import getPrice from "./get-price";
 
 const app = express();
 const cache = apicache.middleware;
@@ -29,6 +30,12 @@ app.get("/carousel-data", cache("4 hour"), async (req, res) => {
   let nfts = await getCarouselData();
   res.setHeader("Content-Type", "application/json");
   res.send(nfts);
+});
+
+app.get("/price", cache("10 minutes"), async (req, res) => {
+  let price = await getPrice();
+  res.setHeader("Content-Type", "application/json");
+  res.send(price);
 });
 
 app.listen(port, () => {
