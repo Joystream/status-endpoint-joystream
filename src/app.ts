@@ -41,7 +41,7 @@ const scheduleCronJob = async () => {
   await fetchAndWriteCarouselData();
 
   cron.schedule("*/5 * * * *", async () => await fetchAndWriteCarouselData());
-  cron.schedule("*/10 * * * *", async () => await fetchAndWriteCirculatingSupplyData());
+  cron.schedule("* * * * *", async () => await fetchAndWriteCirculatingSupplyData());
 };
 
 app.get("/", cache("1 hour"), async (req, res) => {
