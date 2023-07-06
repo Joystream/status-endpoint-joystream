@@ -170,7 +170,7 @@ const findAllValidPotentialAssets = async (storageBag?: StorageBag, assetId?: st
 
     try {
       // TODO: It might make sense to increase the timeout here.
-      await axios.head(url, { timeout: 1000 });
+      await axios.head(url, { timeout: 2500 });
 
       resultArr.push(url);
     } catch (e: unknown) {
