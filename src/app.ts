@@ -37,11 +37,11 @@ const scheduleCronJob = async () => {
 
   // Fetch data initially such that we have something to serve. There will at most
   // be a buffer of 5 minutes from this running until the first cron execution.
-  await fetchAndWriteCirculatingSupplyData();
-  await fetchAndWriteCarouselData();
+  if (!fs.existsSync(CIRCULATING_SUPPLY_DATA_PATH)) await fetchAndWriteCirculatingSupplyData();
+  if (!fs.existsSync(CAROUSEL_DATA_PATH)) await fetchAndWriteCarouselData();
 
-  cron.schedule("*/5 * * * *", async () => await fetchAndWriteCarouselData());
-  cron.schedule("* * * * *", async () => await fetchAndWriteCirculatingSupplyData());
+  cron.schedule("*/5 * * * *", fetchAndWriteCarouselData);
+  cron.schedule("*/5 * * * *", fetchAndWriteCirculatingSupplyData);
 };
 
 app.get("/", cache("1 hour"), async (req, res) => {
@@ -65,9 +65,7 @@ app.get("/carousel-data", async (req, res) => {
     return;
   }
 
-  let nfts = await getCarouselData();
-  res.setHeader("Content-Type", "application/json");
-  res.send(nfts);
+  res.status(500).send();
 });
 
 app.get("/price", cache("10 minutes"), async (req, res) => {
@@ -79,19 +77,18 @@ app.get("/price", cache("10 minutes"), async (req, res) => {
 app.get("/circulating-supply", async (req, res) => {
   if (fs.existsSync(CIRCULATING_SUPPLY_DATA_PATH)) {
     const circulatingSupplyData = fs.readFileSync(CIRCULATING_SUPPLY_DATA_PATH);
-    res.setHeader("Content-Type", "application/json");
-    res.send(JSON.parse(circulatingSupplyData.toString()));
+    res.setHeader("Content-Type", "text/plain");
+    const { circulatingSupply } = JSON.parse(circulatingSupplyData.toString());
+    res.send(`${circulatingSupply}`).end();
 
     return;
   }
 
-  let circulatingSupply = await getCirculatingSupply();
-  res.setHeader("Content-Type", "application/json");
-  res.send(circulatingSupply);
+  res.status(500).send();
 });
 
-scheduleCronJob();
-
-app.listen(port, () => {
-  log(`server started at http://localhost:${port}`);
+scheduleCronJob().then(() => {
+  app.listen(port, () => {
+    log(`server started at http://localhost:${port}`);
+  });
 });

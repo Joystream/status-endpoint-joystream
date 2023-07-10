@@ -390,7 +390,7 @@ export class JoyApi {
         }
       }
 
-      if (vested.gtn(0)) {
+      if (vested.gt(new BN(0))) {
         accounts.push(storageKey.args[0].toString());
         amounts.push(vested);
       }
