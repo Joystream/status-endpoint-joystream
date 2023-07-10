@@ -10,6 +10,7 @@ import { log } from "./debug";
 import getCarouselData from "./get-carousel-data";
 import getPrice from "./get-price";
 import getCirculatingSupply from "./get-circulating-supply";
+import { calculateSecondsUntilNext5MinuteInterval } from "./utils";
 
 const app = express();
 const cache = apicache.middleware;
@@ -65,7 +66,8 @@ app.get("/carousel-data", async (req, res) => {
     return;
   }
 
-  res.status(500).send();
+  res.setHeader("Retry-After", calculateSecondsUntilNext5MinuteInterval());
+  res.status(503).send();
 });
 
 app.get("/price", cache("10 minutes"), async (req, res) => {
@@ -84,7 +86,8 @@ app.get("/circulating-supply", async (req, res) => {
     return;
   }
 
-  res.status(500).send();
+  res.setHeader("Retry-After", calculateSecondsUntilNext5MinuteInterval());
+  res.status(503).send();
 });
 
 scheduleCronJob().then(() => {
