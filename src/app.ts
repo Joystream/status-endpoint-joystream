@@ -42,7 +42,7 @@ const scheduleCronJob = async () => {
 
   // Fetch data initially such that we have something to serve. There will at most
   // be a buffer of 5 minutes from this running until the first cron execution.
-  if (!(fs.existsSync(CIRCULATING_SUPPLY_DATA_PATH) && fs.existsSync(TOTAL_SUPPLY_DATA_PATH)))
+  if (!fs.existsSync(CIRCULATING_SUPPLY_DATA_PATH) || !fs.existsSync(TOTAL_SUPPLY_DATA_PATH))
     await fetchAndWriteSupplyData();
   if (!fs.existsSync(CAROUSEL_DATA_PATH)) await fetchAndWriteCarouselData();
 
