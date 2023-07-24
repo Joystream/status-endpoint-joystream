@@ -4,3 +4,6 @@ lib/
 err.log
 out.log
 exchanges.json
+carousel-data.json
+circulating-supply-data.json
+total-supply-data.json

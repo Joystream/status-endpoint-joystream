@@ -371,6 +371,42 @@ export class JoyApi {
     };
   }
 
+
+  async calculateCirculatingSupply() {
+    const VESTING_STRING_HEX = "0x76657374696e6720";
+
+    const accounts = [];
+    const amounts: BN[] = [];
+    const lockData = await this.api.query.balances.locks.entries();
+
+    for (let [storageKey, palletBalances] of lockData) {
+      let vested = new BN(0);
+      for (let palletBalance of palletBalances) {
+        if (
+          palletBalance.id.toString() === VESTING_STRING_HEX &&
+          palletBalance.amount.toBn().gt(vested)
+        ) {
+          vested = palletBalance.amount.toBn();
+        }
+      }
+
+      if (vested.gt(new BN(0))) {
+        accounts.push(storageKey.args[0].toString());
+        amounts.push(vested);
+      }
+    }
+
+    const intAccs = await this.api.query.system.account.multi(accounts);
+
+    const total = intAccs.reduce((accumulator, val, index) => {
+      return accumulator.add(BN.min(amounts[index], BN.min(val.data.free, val.data.miscFrozen)));
+    }, new BN(0));
+
+    const totalSupply = await this.totalIssuanceInJOY();
+
+    return totalSupply - this.toJOY(total);
+  }
+
   protected async fetchNetworkStatus(): Promise<NetworkStatus> {
     const [
       [

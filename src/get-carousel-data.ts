@@ -169,7 +169,8 @@ const findAllValidPotentialAssets = async (storageBag?: StorageBag, assetId?: st
     const url = `${nodeEndpoint}api/v1/assets/${assetId}`;
 
     try {
-      await axios.head(url, { timeout: 1000 });
+      // TODO: It might make sense to increase the timeout here.
+      await axios.head(url, { timeout: 2500 });
 
       resultArr.push(url);
     } catch (e: unknown) {
