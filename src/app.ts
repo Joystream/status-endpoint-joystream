@@ -12,6 +12,7 @@ import getPrice from "./get-price";
 import getCirculatingSupply from "./get-circulating-supply";
 import { calculateSecondsUntilNext5MinuteInterval } from "./utils";
 import getTotalSupply from "./get-total-supply";
+import getAddresses from "./get-addresses";
 
 const app = express();
 const cache = apicache.middleware;
@@ -54,6 +55,12 @@ app.get("/", cache("1 hour"), async (req, res) => {
   let status = await getStatus();
   res.setHeader("Content-Type", "application/json");
   res.send(status);
+});
+
+app.get("/addresses", async (req, res) => {
+  const addresses = await getAddresses();
+  res.setHeader("Content-Type", "application/json");
+  res.send({ message: addresses });
 });
 
 app.get("/budgets", cache("1 day"), async (req, res) => {

@@ -21,6 +21,7 @@ if(process.env.QUERY_NODE === undefined){
   throw new Error("Missing QUERY_NODE in .env!");
 }
 const QUERY_NODE = process.env.QUERY_NODE;
+const VESTING_STRING_HEX = "0x76657374696e6720";
 
 type SystemData = {
   chain: string
@@ -373,8 +374,6 @@ export class JoyApi {
 
 
   async calculateCirculatingSupply() {
-    const VESTING_STRING_HEX = "0x76657374696e6720";
-
     const accounts = [];
     const amounts: BN[] = [];
     const lockData = await this.api.query.balances.locks.entries();
@@ -405,6 +404,68 @@ export class JoyApi {
     const totalSupply = await this.totalIssuanceInJOY();
 
     return totalSupply - this.toJOY(total);
+  }
+
+  async getAddresses() {
+    const lockData = await this.api.query.balances.locks.entries();
+    const lockDataAdresses: any[] = [];
+    const resultData: {
+      [key: string]: {
+        tempAmount: BN;
+        total_balance: number;
+        transferrable_balance: number;
+        locked_balance: number;
+        vesting_lock: number;
+      };
+    } = {};
+
+    for (let [storageKey, palletBalances] of lockData) {
+      let biggestLock = new BN(0);
+      let vestingLock = new BN(0);
+      const address = storageKey.args[0].toString();
+
+      lockDataAdresses.push(address);
+      resultData[address] = {
+        tempAmount: new BN(0),
+        total_balance: 0,
+        transferrable_balance: 0,
+        locked_balance: 0,
+        vesting_lock: 0,
+      };
+
+      for (let palletBalance of palletBalances) {
+        if (palletBalance.amount.toBn().gt(biggestLock)) {
+          biggestLock = palletBalance.amount.toBn();
+
+          if (
+            palletBalance.id.toString() === VESTING_STRING_HEX &&
+            palletBalance.amount.toBn().gt(vestingLock)
+          ) {
+            vestingLock = palletBalance.amount.toBn();
+          }
+        }
+      }
+
+      if (biggestLock.gt(new BN(0))) {
+        resultData[address].tempAmount = biggestLock;
+        resultData[address].vesting_lock = this.toJOY(vestingLock);
+      }
+    }
+
+    const intAccs = await this.api.query.system.account.multi(lockDataAdresses);
+
+    intAccs.forEach((val, index) => {
+      const address = lockDataAdresses[index];
+      const totalBalance = this.toJOY(val.data.free);
+      const lockedBalance = this.toJOY(
+        BN.min(resultData[address].tempAmount, BN.min(val.data.free, val.data.miscFrozen))
+      );
+      resultData[address].total_balance = totalBalance;
+      resultData[address].locked_balance = lockedBalance;
+      resultData[address].transferrable_balance = totalBalance - lockedBalance;
+    });
+
+    return resultData;
   }
 
   protected async fetchNetworkStatus(): Promise<NetworkStatus> {
