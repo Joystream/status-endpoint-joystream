@@ -82,6 +82,14 @@ type NetworkStatus = {
   runtimeData: RuntimeData
 }
 
+type Address = {
+  total_balance: number
+  transferrable_balance: number
+  locked_balance: number
+  vesting_lock: number
+  vestable: number
+}
+
 export class JoyApi {
   endpoint: string;
   tokenDecimals!: number;
@@ -407,21 +415,19 @@ export class JoyApi {
   }
 
   async getAddresses() {
+    // TODO: Is this the best way to get the current block?
+    const currentBlock = (await this.api.derive.chain.bestNumber()).toNumber();
     const lockData = await this.api.query.balances.locks.entries();
     const lockDataAdresses: any[] = [];
     const resultData: {
       [key: string]: {
         tempAmount: BN;
-        total_balance: number;
-        transferrable_balance: number;
-        locked_balance: number;
-        vesting_lock: number;
-      };
+      } & Address;
     } = {};
 
     for (let [storageKey, palletBalances] of lockData) {
       let biggestLock = new BN(0);
-      let vestingLock = new BN(0);
+      let biggestVestingLock = new BN(0);
       const address = storageKey.args[0].toString();
 
       lockDataAdresses.push(address);
@@ -431,6 +437,7 @@ export class JoyApi {
         transferrable_balance: 0,
         locked_balance: 0,
         vesting_lock: 0,
+        vestable: 0,
       };
 
       for (let palletBalance of palletBalances) {
@@ -439,23 +446,52 @@ export class JoyApi {
 
           if (
             palletBalance.id.toString() === VESTING_STRING_HEX &&
-            palletBalance.amount.toBn().gt(vestingLock)
+            palletBalance.amount.toBn().gt(biggestVestingLock)
           ) {
-            vestingLock = palletBalance.amount.toBn();
+            biggestVestingLock = palletBalance.amount.toBn();
           }
         }
       }
 
       if (biggestLock.gt(new BN(0))) {
         resultData[address].tempAmount = biggestLock;
-        resultData[address].vesting_lock = this.toJOY(vestingLock);
+        resultData[address].vesting_lock = this.toJOY(biggestVestingLock);
       }
     }
 
     const intAccs = await this.api.query.system.account.multi(lockDataAdresses);
+    const vestingData = await this.api.query.vesting.vesting.multi(lockDataAdresses);
 
     intAccs.forEach((val, index) => {
       const address = lockDataAdresses[index];
+      const currentAddressVestingData = vestingData[index];
+      const currentAddressVestingEntries = currentAddressVestingData.unwrapOr(null);
+
+      if (currentAddressVestingEntries !== null) {
+        const largestVestingEntry = currentAddressVestingEntries.reduce((accumulator, val) => {
+          // We can add the following line to mitigate problem but it's not a fix.
+          // && val.startingBlock.eq(new BN(0)) && val.perBlock.lt(new BN(1_000_000_000_000))
+          if (val.locked.gt(accumulator.locked)) {
+            return val;
+          }
+
+          return accumulator;
+        });
+
+        const maxFromOriginVestable = largestVestingEntry.perBlock.mul(new BN(currentBlock));
+        const maxRemainingVestable = largestVestingEntry.locked.sub(this.toHAPI(resultData[address].vesting_lock));
+        const currentlyVestable = maxFromOriginVestable.sub(maxRemainingVestable);
+
+        // TODO: Due to a massive vesting lock the following line will end up with a massive negative value.
+        // We catch that for now but that should be found and replaced with the actual vesting lock earlier.
+        try {
+          resultData[address].vestable = this.toJOY(currentlyVestable);
+        } catch (e) {
+          console.log(`Vestable calculation error. At value: ${currentlyVestable.toString()}`)
+          console.log(`At address: ${address}`);
+        }
+      }
+
       const totalBalance = this.toJOY(val.data.free);
       const lockedBalance = this.toJOY(
         BN.min(resultData[address].tempAmount, BN.min(val.data.free, val.data.miscFrozen))
@@ -463,9 +499,11 @@ export class JoyApi {
       resultData[address].total_balance = totalBalance;
       resultData[address].locked_balance = lockedBalance;
       resultData[address].transferrable_balance = totalBalance - lockedBalance;
+
+      delete (resultData[address] as any).tempAmount;
     });
 
-    return resultData;
+    return resultData as { [key: string]: Address };
   }
 
   protected async fetchNetworkStatus(): Promise<NetworkStatus> {
