@@ -20,9 +20,11 @@ const port = process.env.PORT || 8081;
 const CAROUSEL_DATA_PATH = path.join(__dirname, "../carousel-data.json");
 const CIRCULATING_SUPPLY_DATA_PATH = path.join(__dirname, "../circulating-supply-data.json");
 const TOTAL_SUPPLY_DATA_PATH = path.join(__dirname, "../total-supply-data.json");
+const ADDRESS_UI_HTML = path.join(__dirname, "../public/address_ui.ejs");
 
 app.use(cors());
 app.use(express.json());
+app.set("view engine", "ejs");
 
 const scheduleCronJob = async () => {
   console.log("Scheduling cron job...");
@@ -61,6 +63,24 @@ app.get("/addresses", async (req, res) => {
   const addresses = await getAddresses();
   res.setHeader("Content-Type", "application/json");
   res.send({ message: addresses });
+});
+
+app.get("/address_ui", async (req, res) => {
+  if(!req.query.address) {
+    res.render(ADDRESS_UI_HTML, { message: undefined});
+    return;
+  }
+
+  res.render(ADDRESS_UI_HTML, {
+    recordedAtBlock: 3_365_488,
+    recordedAtTime: new Date().toISOString(),
+    address: req.query.address,
+    lockedBalance: 81501.99,
+    totalBalance: 481502.016,
+    transferrableBalance: 0.0195,
+    vestingLock: 237404.53,
+    vestable:2858.22
+   });
 });
 
 app.get("/budgets", cache("1 day"), async (req, res) => {
