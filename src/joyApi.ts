@@ -83,6 +83,8 @@ type NetworkStatus = {
 }
 
 type Address = {
+  recorded_at_block: number;
+  recorded_at_time: string;
   total_balance: number
   transferrable_balance: number
   locked_balance: number
@@ -417,6 +419,7 @@ export class JoyApi {
   async getAddresses() {
     const finalizedHeadHash = await this.finalizedHash();
     const { number: blockNumber } = await this.api.rpc.chain.getHeader(`${finalizedHeadHash}`);
+    const timestamp = await this.api.query.timestamp.now.at(finalizedHeadHash);
     const finalizedApi = await this.api.at(finalizedHeadHash);
     const currentBlock = blockNumber.toBn();
 
@@ -435,6 +438,8 @@ export class JoyApi {
 
       resultData[address] = {
         tempAmount: new BN(0),
+        recorded_at_block: currentBlock.toNumber(),
+        recorded_at_time: (new Date(timestamp.toNumber())).toISOString(),
         total_balance: 0,
         transferrable_balance: 0,
         locked_balance: 0,
@@ -487,60 +492,16 @@ export class JoyApi {
           BN.min(resultData[address].tempAmount, BN.min(val.data.free, val.data.miscFrozen))
         );
         resultData[address].total_balance = totalBalance;
+        resultData[address].transferrable_balance = totalBalance - lockedBalance;
+        resultData[address].locked_balance = lockedBalance;
 
         if(vestingSum.lte(val.data.free)) {
-          // const unlockedAmount = val.data.free.sub(vestingSum);
-          // const lockedAmount = vestingSum;
-
-          resultData[address].transferrable_balance = totalBalance - lockedBalance;
-          resultData[address].locked_balance = lockedBalance;
           resultData[address].vestable = this.toJOY(vestable);
-        } else {
-          resultData[address].locked_balance = this.toJOY(val.data.free);
         }
       }
     });
 
-    // intAccs.forEach((val, index) => {
-    //   const address = lockDataAdresses[index];
-    //   const currentAddressVestingData = vestingData[index];
-    //   const currentAddressVestingEntries = currentAddressVestingData.unwrapOr(null);
-
-    //   if (currentAddressVestingEntries !== null) {
-    //     const largestVestingEntry = currentAddressVestingEntries.reduce((accumulator, val) => {
-    //       // We can add the following line to mitigate problem but it's not a fix.
-    //       // && val.startingBlock.eq(new BN(0)) && val.perBlock.lt(new BN(1_000_000_000_000))
-    //       if (val.locked.gt(accumulator.locked)) {
-    //         return val;
-    //       }
-
-    //       return accumulator;
-    //     });
-
-        // const maxFromOriginVestable = largestVestingEntry.perBlock.mul(currentBlock);
-        // const maxRemainingVestable = largestVestingEntry.locked.sub(this.toHAPI(resultData[address].vesting_lock));
-        // const currentlyVestable = maxFromOriginVestable.sub(maxRemainingVestable);
-
-    //     // TODO: Due to a massive vesting lock the following line will end up with a massive negative value.
-    //     // We catch that for now but that should be found and replaced with the actual vesting lock earlier.
-    //     try {
-    //       resultData[address].vestable = this.toJOY(currentlyVestable);
-    //     } catch (e) {
-    //       console.log(`Vestable calculation error. At value: ${currentlyVestable.toString()}`)
-    //       console.log(`At address: ${address}`);
-    //     }
-    //   }
-
-    //   const totalBalance = this.toJOY(val.data.free);
-    //   const lockedBalance = this.toJOY(
-    //     BN.min(resultData[address].tempAmount, BN.min(val.data.free, val.data.miscFrozen))
-    //   );
-    //   resultData[address].total_balance = totalBalance;
-    //   resultData[address].locked_balance = lockedBalance;
-    //   resultData[address].transferrable_balance = totalBalance - lockedBalance;
-
-    //   delete (resultData[address] as any).tempAmount;
-    // });
+    Object.keys(resultData).forEach((address) => { delete (resultData[address] as any).tempAmount; });
 
     return resultData as { [key: string]: Address };
   }
