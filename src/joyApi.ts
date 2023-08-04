@@ -9,7 +9,8 @@ import {
   PalletWorkingGroupGroupWorker as Worker,
   PalletReferendumReferendumStage as ReferendumStage,
   PalletCouncilCouncilStageUpdate as CouncilStageUpdate,
-  PalletVestingVestingInfo
+  PalletVestingVestingInfo,
+  FrameSystemAccountInfo
 } from '@polkadot/types/lookup'
 import { Vec } from '@polkadot/types';
 
@@ -424,17 +425,26 @@ export class JoyApi {
     const currentBlock = blockNumber.toBn();
 
     const lockData = await finalizedApi.query.balances.locks.entries();
-    const lockDataAdresses: any[] = [];
+    const systemAccounts = await finalizedApi.query.system.account.entries();
+    const vestingLockAddresses: any[] = [];
     const resultData: {
       [key: string]: {
         tempAmount: BN;
       } & Address;
     } = {};
 
-    for (let [storageKey, palletBalances] of lockData) {
-      let biggestLock = new BN(0);
-      let biggestVestingLock = new BN(0);
-      const address = storageKey.args[0].toString();
+    const updateBaseBalanceData = (address: string, account: FrameSystemAccountInfo) => {
+      const totalBalance = this.toJOY(account.data.free);
+      const lockedBalance = this.toJOY(
+        BN.min(resultData[address].tempAmount, BN.min(account.data.free, account.data.miscFrozen))
+      );
+      resultData[address].total_balance = totalBalance;
+      resultData[address].transferrable_balance = totalBalance - lockedBalance;
+      resultData[address].locked_balance = lockedBalance;
+    }
+
+    systemAccounts.forEach(([key, account]) => {
+      const address = key.args[0].toString();
 
       resultData[address] = {
         tempAmount: new BN(0),
@@ -446,6 +456,14 @@ export class JoyApi {
         vesting_lock: 0,
         vestable: 0,
       };
+
+      updateBaseBalanceData(address, account);
+    });
+
+    for (let [storageKey, palletBalances] of lockData) {
+      let biggestLock = new BN(0);
+      let biggestVestingLock = new BN(0);
+      const address = storageKey.args[0].toString();
 
       for (let palletBalance of palletBalances) {
         if(palletBalance.amount.toBn().gt(biggestLock)) {
@@ -465,16 +483,24 @@ export class JoyApi {
       }
 
       if (biggestVestingLock.gt(new BN(0))) {
-        lockDataAdresses.push(address);
+        vestingLockAddresses.push(address);
         resultData[address].vesting_lock = this.toJOY(biggestVestingLock);
       }
     }
 
-    const intAccs = await finalizedApi.query.system.account.multi(lockDataAdresses);
-    const vestingData = await finalizedApi.query.vesting.vesting.multi(lockDataAdresses);
+    const intAccs = systemAccounts.reduce((acc, [key, account]) => {
+      const address = key.args[0].toString();
+
+      if(vestingLockAddresses.includes(address)) {
+        return [...acc, account];
+      }
+
+      return acc;
+    }, [] as FrameSystemAccountInfo[]);
+    const vestingData = await finalizedApi.query.vesting.vesting.multi(vestingLockAddresses);
 
     intAccs.forEach((val, index) => {
-      const address = lockDataAdresses[index];
+      const address = vestingLockAddresses[index];
       const currentAddressVestingData = vestingData[index];
       const currentAddressVestingEntries = currentAddressVestingData.unwrapOr(null);
 
@@ -487,18 +513,12 @@ export class JoyApi {
           return [vestingSumAcc.add(vestingEntry.locked), vestableAcc.add(currentlyVestable)];
         }, [new BN(0), new BN(0)]);
 
-        const totalBalance = this.toJOY(val.data.free);
-        const lockedBalance = this.toJOY(
-          BN.min(resultData[address].tempAmount, BN.min(val.data.free, val.data.miscFrozen))
-        );
-        resultData[address].total_balance = totalBalance;
-        resultData[address].transferrable_balance = totalBalance - lockedBalance;
-        resultData[address].locked_balance = lockedBalance;
-
         if(vestingSum.lte(val.data.free)) {
           resultData[address].vestable = this.toJOY(vestable);
         }
       }
+
+      updateBaseBalanceData(address, val);
     });
 
     Object.keys(resultData).forEach((address) => { delete (resultData[address] as any).tempAmount; });
