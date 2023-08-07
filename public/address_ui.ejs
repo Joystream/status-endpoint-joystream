@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Joystream Address UI</title>
+    <link rel="icon" href="https://www.joystream.org/favicon-32x32.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="min-h-screen">
+    <main class="min-h-screen flex flex-col items-center justify-center">
+        <div class="w-full max-w-lg">
+          <form class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+            <div class="mb-6">
+              <label class="block text-gray-700 text-sm font-bold mb-2" for="address">
+                Address
+              </label>
+              <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" type="text" placeholder="Address" name="address" value="<%= locals?.address %>">
+            </div>
+            <div>
+              <p class="text-gray-700 text-md font-bold mb-2">Recorded at block: <span class="font-normal"><%= locals?.recorded_at_block %></span></p>
+              <p class="text-gray-700 text-md font-bold mb-2">Recorded at time: <span class="font-normal"><%= locals?.recorded_at_time %></span></p>
+              <p class="text-gray-700 text-md font-bold mb-2">Locked balance: <span class="font-normal"><%= locals?.locked_balance %></span></p>
+              <p class="text-gray-700 text-md font-bold mb-2">Total balance: <span class="font-normal"><%= locals?.total_balance %></span></p>
+              <p class="text-gray-700 text-md font-bold mb-2">Transferrable balance: <span class="font-normal"><%= locals?.transferrable_balance %></span></p>
+              <p class="text-gray-700 text-md font-bold mb-2">Vesting lock: <span class="font-normal"><%= locals?.vesting_lock %></span></p>
+            </div>
+            <div class="flex items-center justify-center">
+              <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" type="submit">
+                Search
+              </button>
+            </div>
+          </form>
+        </div>
+    </main>
+  </body>
+</html>
