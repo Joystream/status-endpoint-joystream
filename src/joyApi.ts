@@ -10,7 +10,6 @@ import {
   PalletReferendumReferendumStage as ReferendumStage,
   PalletCouncilCouncilStageUpdate as CouncilStageUpdate,
   PalletVestingVestingInfo,
-  FrameSystemAccountInfo
 } from '@polkadot/types/lookup'
 import { Vec } from '@polkadot/types';
 
@@ -90,7 +89,6 @@ type Address = {
   transferrable_balance: number
   locked_balance: number
   vesting_lock: number
-  vestable: number
 }
 
 export class JoyApi {
@@ -423,41 +421,30 @@ export class JoyApi {
     const timestamp = await this.api.query.timestamp.now.at(finalizedHeadHash);
     const finalizedApi = await this.api.at(finalizedHeadHash);
     const currentBlock = blockNumber.toBn();
+    const currentTime = (new Date(timestamp.toNumber())).toISOString();
 
     const lockData = await finalizedApi.query.balances.locks.entries();
     const systemAccounts = await finalizedApi.query.system.account.entries();
-    const vestingLockAddresses: any[] = [];
-    const resultData: {
-      [key: string]: {
-        tempAmount: BN;
-      } & Address;
-    } = {};
-
-    const updateBaseBalanceData = (address: string, account: FrameSystemAccountInfo) => {
-      const totalBalance = this.toJOY(account.data.free);
-      const lockedBalance = this.toJOY(
-        BN.min(resultData[address].tempAmount, BN.min(account.data.free, account.data.miscFrozen))
-      );
-      resultData[address].total_balance = totalBalance;
-      resultData[address].transferrable_balance = totalBalance - lockedBalance;
-      resultData[address].locked_balance = lockedBalance;
-    }
-
-    systemAccounts.forEach(([key, account]) => {
+    const resultData = systemAccounts.reduce((acc, [key, account]) => {
       const address = key.args[0].toString();
 
-      resultData[address] = {
+      acc[address] = {
         tempAmount: new BN(0),
+        tempAmount2: new BN(0),
         recorded_at_block: currentBlock.toNumber(),
-        recorded_at_time: (new Date(timestamp.toNumber())).toISOString(),
+        recorded_at_time: currentTime,
         total_balance: 0,
         transferrable_balance: 0,
         locked_balance: 0,
         vesting_lock: 0,
-        vestable: 0,
       };
 
-      updateBaseBalanceData(address, account);
+      return acc;
+    }, {} as {
+      [key: string]: {
+        tempAmount: BN;
+        tempAmount2: BN;
+      } & Address;
     });
 
     for (let [storageKey, palletBalances] of lockData) {
@@ -483,45 +470,28 @@ export class JoyApi {
       }
 
       if (biggestVestingLock.gt(new BN(0))) {
-        vestingLockAddresses.push(address);
         resultData[address].vesting_lock = this.toJOY(biggestVestingLock);
+        resultData[address].tempAmount2 = biggestVestingLock;
       }
     }
 
-    const intAccs = systemAccounts.reduce((acc, [key, account]) => {
+    systemAccounts.forEach(([key, account]) => {
       const address = key.args[0].toString();
 
-      if(vestingLockAddresses.includes(address)) {
-        return [...acc, account];
-      }
-
-      return acc;
-    }, [] as FrameSystemAccountInfo[]);
-    const vestingData = await finalizedApi.query.vesting.vesting.multi(vestingLockAddresses);
-
-    intAccs.forEach((val, index) => {
-      const address = vestingLockAddresses[index];
-      const currentAddressVestingData = vestingData[index];
-      const currentAddressVestingEntries = currentAddressVestingData.unwrapOr(null);
-
-      if(currentAddressVestingEntries !== null) {
-        const [vestingSum, vestable] = currentAddressVestingEntries.reduce(([vestingSumAcc, vestableAcc], vestingEntry) => {
-          const maxFromOriginVestable = vestingEntry.perBlock.mul(currentBlock);
-          const maxRemainingVestable = vestingEntry.locked.sub(this.toHAPI(resultData[address].vesting_lock));
-          const currentlyVestable = maxFromOriginVestable.sub(maxRemainingVestable);
-
-          return [vestingSumAcc.add(vestingEntry.locked), vestableAcc.add(currentlyVestable)];
-        }, [new BN(0), new BN(0)]);
-
-        if(vestingSum.lte(val.data.free)) {
-          resultData[address].vestable = this.toJOY(vestable);
-        }
-      }
-
-      updateBaseBalanceData(address, val);
+      const totalBalance = this.toJOY(account.data.free);
+      const lockedBalance = this.toJOY(
+        BN.min(resultData[address].tempAmount, BN.min(account.data.free, account.data.miscFrozen))
+      );
+      resultData[address].total_balance = totalBalance;
+      resultData[address].transferrable_balance = totalBalance - lockedBalance;
+      resultData[address].locked_balance = lockedBalance;
+      resultData[address].vesting_lock = this.toJOY(
+        BN.min(resultData[address].tempAmount2, BN.min(account.data.free, account.data.miscFrozen))
+      );
     });
 
     Object.keys(resultData).forEach((address) => { delete (resultData[address] as any).tempAmount; });
+    Object.keys(resultData).forEach((address) => { delete (resultData[address] as any).tempAmount2; });
 
     return resultData as { [key: string]: Address };
   }
