@@ -83,12 +83,13 @@ type NetworkStatus = {
 }
 
 type Address = {
-  recorded_at_block: number;
-  recorded_at_time: string;
+  recorded_at_block: number
+  recorded_at_time: string
   total_balance: number
   transferrable_balance: number
   locked_balance: number
   vesting_lock: number
+  vestable: number
 }
 
 export class JoyApi {
@@ -425,6 +426,7 @@ export class JoyApi {
 
     const lockData = await finalizedApi.query.balances.locks.entries();
     const systemAccounts = await finalizedApi.query.system.account.entries();
+    const vestingLockAddresses: string[] = [];
     const resultData = systemAccounts.reduce((acc, [key, account]) => {
       const address = key.args[0].toString();
 
@@ -437,6 +439,7 @@ export class JoyApi {
         transferrable_balance: 0,
         locked_balance: 0,
         vesting_lock: 0,
+        vestable: 0
       };
 
       return acc;
@@ -470,10 +473,16 @@ export class JoyApi {
       }
 
       if (biggestVestingLock.gt(new BN(0))) {
+        vestingLockAddresses.push(address);
         resultData[address].vesting_lock = this.toJOY(biggestVestingLock);
         resultData[address].tempAmount2 = biggestVestingLock;
       }
     }
+
+    const vestableAddressData = (await Promise.all(
+      vestingLockAddresses.map((address) => this.api.derive.balances.all(address))))
+      .map((derivedBalance) => derivedBalance.vestedClaimable
+    );
 
     systemAccounts.forEach(([key, account]) => {
       const address = key.args[0].toString();
@@ -488,6 +497,12 @@ export class JoyApi {
       resultData[address].vesting_lock = this.toJOY(
         BN.min(resultData[address].tempAmount2, BN.min(account.data.free, account.data.miscFrozen))
       );
+
+      const vestingAddressIndex = vestingLockAddresses.findIndex((vestingAddress) => vestingAddress === address);
+
+      if(vestingAddressIndex >= 0) {
+        resultData[address].vestable = this.toJOY(vestableAddressData[vestingAddressIndex]);
+      }
     });
 
     Object.keys(resultData).forEach((address) => { delete (resultData[address] as any).tempAmount; });
