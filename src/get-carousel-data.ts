@@ -165,7 +165,7 @@ const findAllValidPotentialAssets = async (storageBag?: StorageBag, assetId?: st
   for (let { operators } of storageBag.distributionBuckets) {
     if (operators.length === 0) continue;
 
-    const nodeEndpoint = operators[0].metadata.nodeEndpoint;
+    const nodeEndpoint = operators[0]?.metadata?.nodeEndpoint;
     const url = `${nodeEndpoint}api/v1/assets/${assetId}`;
 
     try {
