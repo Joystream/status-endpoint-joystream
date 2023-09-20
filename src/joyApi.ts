@@ -387,6 +387,17 @@ export class JoyApi {
    * It is done by going through all accounts which have locks associated
    * with them and summing the amounts of all the vesting locks. That computed
    * value is then subtracted from the total supply of tokens to get the final result.
+   *
+   * Overview of the algorithm:
+   * 1. Fetch relevant lock data of all accounts
+   * 2. Per account, loop through all of the locks and find the greatest vesting lock value
+   * 3. Fetch all of the system.account data for all of the accounts that have a vesting lock
+   * 4. Calculate the total locked amount by summing the smallest of the following:
+   *      - the vesting lock value
+   *      - the free balance
+   * 5. Fetch the current total supply of tokens
+   * 6. Subtract the total locked amount from the total supply to get
+   *    the amount of tokens that are currently in circulation.
    */
 
   async calculateCirculatingSupply() {
@@ -439,18 +450,20 @@ export class JoyApi {
     // (i.e., all accounts found in accountVestingLockData)
     const systemAccounts = await this.api.query.system.account.multi(accountVestingLockData.map(({ address }) => address));
 
-    // Calculate the total locked amount by summing the smallest of the following:
+    // Loop through systemAccount data and calculate the total locked
+    // amount by summing the smallest of the following:
     // - the vesting lock value
     // - the free balance
-    // - the miscFrozen balance
     const totalLockedAmount = systemAccounts.reduce((accumulator, systemAccount, index) => {
       // The reasoning behind the following line is:
       // - the total amount of tokens in an account is the sum of the free and reserved balance
       //   -> but, the locks only apply to the free portion of that sum
+      // - however, there is a bug which can cause vesting lock amounts to be
+      //   much greater than the actual (free) account balance
       // - so, the total amount of vesting-locked tokens that exist in an account is
       //   the minimum value between the vesting lock value and the free balance
       //   (i.e., accountVestingLockData[index].amount and systemAccount.data.free in this case)
-      return accumulator.add(BN.min(accountVestingLockData[index].amount, BN.min(systemAccount.data.free, systemAccount.data.feeFrozen)));
+      return accumulator.add(BN.min(accountVestingLockData[index].amount, systemAccount.data.free));
     }, new BN(0));
 
     // Fetch the current total supply of tokens
