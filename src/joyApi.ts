@@ -419,29 +419,17 @@ export class JoyApi {
     //   ]
     //
     for (let [storageKey, palletBalances] of lockData) {
-      // Initialize temporary "vested" variable which tracks the greatest vesting lock value
-      // associated with the account, if no such value exists it will stay 0.
-      let vested = new BN(0);
-
-      // Loop through all of the locks associated with the account:
+      // Find potential vesting lock by looping through all of the locks associated with the account
+      // and comparing the id of the lock to the id of a qualifying vesting lock. As there is only
+      // one vesting lock per acccount, we simply return as soon as we have found one.
       // - example of an entry in palletBalances: { id: 'vesting', amount: 10000000 }
-      for (let palletBalance of palletBalances) {
-        // With this we check if the lock is a vesting lock and get the largest
-        // value associated with it, then we update the temporary "vested" variable.
-        if (
-          palletBalance.id.toString() === VESTING_STRING_HEX &&
-          palletBalance.amount.toBn().gt(vested)
-        ) {
-          vested = palletBalance.amount.toBn();
-        }
-      }
+      const vestingLock = palletBalances.find(({ id }) => id.toString() === VESTING_STRING_HEX)
 
-      // If there is a vesting lock, we store it into
-      // the accountVestingLockData array for later use.
-      if (vested.gt(new BN(0))) {
+      // If there is a vesting lock, we store it into the accountVestingLockData array for later use.
+      if(vestingLock) {
         accountVestingLockData.push({
           address: storageKey.args[0].toString(),
-          amount: vested,
+          amount: vestingLock.amount.toBn(),
         });
       }
     }
