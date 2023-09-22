@@ -390,7 +390,7 @@ export class JoyApi {
    *
    * Overview of the algorithm:
    * 1. Fetch relevant lock data of all accounts
-   * 2. Per account, loop through all of the locks and find the greatest vesting lock value
+   * 2. Per account, loop through all of the locks and find the vesting lock value
    * 3. Fetch all of the system.account data for all of the accounts that have a vesting lock
    * 4. Calculate the total locked amount by summing the smallest of the following:
    *      - the vesting lock value
@@ -403,7 +403,7 @@ export class JoyApi {
   async calculateCirculatingSupply() {
     // Initialization of array with following information:
     // - address: an address with a vesting lock
-    // - amount: greatest vesting value corresponding to the address
+    // - amount: the vesting value corresponding to the address
     type AccountVestingLock = { address: string; amount: BN };
     const accountVestingLockData: AccountVestingLock[] = []
 
