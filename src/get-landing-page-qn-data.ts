@@ -183,7 +183,7 @@ const findAllValidPotentialAssets = async (storageBag?: StorageBag, assetId?: st
   return resultArr;
 };
 
-const getCarouselData = async () => {
+const getLandingPageQNData = async () => {
   await api.init;
 
   const result: { nfts: Array<{}>; proposals: Array<{}>; payouts: Array<{}> } = {
@@ -306,9 +306,7 @@ const getCarouselData = async () => {
       status: { __typename: statusType },
       id,
       creator: {
-        metadata: {
-          avatar: { avatarUri },
-        },
+        metadata: { avatar },
       },
       statusSetAtTime,
       createdAt,
@@ -317,7 +315,7 @@ const getCarouselData = async () => {
       title,
       status: getStatusFromStatusType(statusType),
       link: `https://pioneerapp.xyz/#/proposals/preview/${id}`,
-      img: avatarUri,
+      img: avatar?.avatarUri,
       statusSetAtTime,
       createdAt,
       timeLeftUntil,
@@ -343,4 +341,4 @@ const getCarouselData = async () => {
   return result;
 };
 
-export default getCarouselData;
+export default getLandingPageQNData;
