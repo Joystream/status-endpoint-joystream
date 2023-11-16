@@ -33,11 +33,15 @@ const scheduleCronJob = async () => {
   const fetchAndWriteLandingPageData = async () => {
     let price = await getPrice();
     let budgets = await getBudgets();
-    const landingPageQNData = await getLandingPageQNData();
+    const { nfts, proposals, payouts, ...rest } = await getLandingPageQNData();
 
     fs.writeFileSync(
       LANDING_PAGE_DATA_PATH,
-      JSON.stringify({ ...price, budgets, carouselData: landingPageQNData }, null, 2)
+      JSON.stringify(
+        { ...price, budgets, carouselData: { nfts, proposals, payouts }, ...rest },
+        null,
+        2
+      )
     );
   };
 

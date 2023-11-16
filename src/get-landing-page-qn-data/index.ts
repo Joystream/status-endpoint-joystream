@@ -1,77 +1,18 @@
 import axios from "axios";
-import { JoyApi } from "./joyApi";
-
-const NUMBER_OF_ITMES_TO_FETCH = 10;
+import { JoyApi } from "../joyApi";
+import { getLandingPageQuery } from "./query";
+import {
+  NFT,
+  Proposal,
+  ChannelPaymentEvent,
+  StorageBag,
+  ProposalParameter,
+  GenericObject,
+} from "./types";
 
 const api = new JoyApi();
 
-type StorageBag = {
-  distributionBuckets: Array<{
-    operators: Array<{ metadata: { nodeEndpoint: string } }>;
-  }>;
-};
-
-type NFT = {
-  lastSaleDate: string;
-  lastSalePrice: string;
-  creatorChannel: {
-    title: string;
-  };
-  video: {
-    id: string;
-    title: string;
-    thumbnailPhotoId: string;
-    thumbnailPhoto: {
-      storageBag: StorageBag;
-    };
-  };
-};
-
-type Proposal = {
-  details: {
-    __typename: string;
-  };
-  title: string;
-  createdAt: string;
-  isFinalized: boolean;
-  status: {
-    __typename: string;
-  };
-  id: string;
-  statusSetAtTime: string;
-  creator: {
-    metadata: {
-      avatar: {
-        avatarUri: string;
-      };
-    };
-  };
-};
-
-type ChannelPaymentEvent = {
-  createdAt: string;
-  amount: string;
-  payeeChannel: {
-    id: string;
-    title: string;
-    avatarPhoto: {
-      id: string;
-      storageBag: StorageBag;
-    };
-  };
-};
-
-type ProposalParameter = {
-  votingPeriod: number;
-  gracePeriod: number;
-  approvalQuorumPercentage: number;
-  approvalThresholdPercentage: number;
-  slashingQuorumPercentage: number;
-  slashingThresholdPercentage: number;
-  requiredStake: number;
-  constitutionality: number;
-};
-
+const NUMBER_OF_ITMES_TO_FETCH = 10;
 const BLOCK_INTERVAL_IN_SECONDS = 6;
 
 const PROPOSAL_STATUS = "ProposalStatus";
@@ -183,101 +124,12 @@ const findAllValidPotentialAssets = async (storageBag?: StorageBag, assetId?: st
   return resultArr;
 };
 
-const getLandingPageQNData = async () => {
-  await api.init;
-
-  const result: { nfts: Array<{}>; proposals: Array<{}>; payouts: Array<{}> } = {
-    nfts: [],
-    proposals: [],
-    payouts: [],
-  };
-
-  const response = await api.qnQuery<{
-    ownedNfts: Array<NFT>;
-    proposals: Array<Proposal>;
-    channelPaymentMadeEvents: Array<ChannelPaymentEvent>;
-  }>(`
-    {
-      ownedNfts(
-        limit: ${NUMBER_OF_ITMES_TO_FETCH}
-        orderBy: lastSaleDate_DESC
-        where: { lastSalePrice_gt: 0 }
-      ) {
-        lastSaleDate
-        lastSalePrice
-        creatorChannel {
-          title
-        }
-        video {
-          id
-          title
-          thumbnailPhotoId
-          thumbnailPhoto {
-            storageBag {
-              distributionBuckets {
-                operators {
-                  metadata {
-                    nodeEndpoint
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      proposals(limit: ${NUMBER_OF_ITMES_TO_FETCH}, orderBy: statusSetAtTime_DESC) {
-        details {
-          __typename
-        }
-        title
-        createdAt
-        isFinalized
-        status {
-          __typename
-        }
-        id
-        statusSetAtTime
-        creator {
-          metadata {
-            avatar {
-              ... on AvatarUri {
-                avatarUri
-              }
-            }
-          }
-        }
-      },
-      channelPaymentMadeEvents(limit: 30, orderBy: createdAt_DESC) {
-        createdAt
-        amount
-        payeeChannel {
-          id
-          title
-          rewardAccount
-          ownerMember {
-            id
-            handle
-          }
-          avatarPhoto {
-            id,
-            storageBag {
-              distributionBuckets {
-                operators {
-                  metadata {
-                    nodeEndpoint
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  `);
-
-  if (!response) return result;
-
-  result.nfts = await Promise.all(
+const parseCarouselData = async (response: {
+  ownedNfts: Array<NFT>;
+  proposals: Array<Proposal>;
+  channelPaymentMadeEvents: Array<ChannelPaymentEvent>;
+}) => {
+  const nfts = await Promise.all(
     response.ownedNfts.map(
       async ({
         lastSaleDate,
@@ -300,7 +152,7 @@ const getLandingPageQNData = async () => {
     )
   );
 
-  result.proposals = (await incorporateProposalExpiryDate(response.proposals)).map(
+  const proposals = (await incorporateProposalExpiryDate(response.proposals)).map(
     ({
       title,
       status: { __typename: statusType },
@@ -322,23 +174,91 @@ const getLandingPageQNData = async () => {
     })
   );
 
-  result.payouts = (
+  const payouts = (
     await Promise.all(
-      response.channelPaymentMadeEvents.map(
-        async ({ amount, payeeChannel: { id: channelId, avatarPhoto, title }, createdAt }) => ({
-          joyAmount: Math.round(Number(amount) / 10_000_000_000).toString(),
-          createdAt,
-          imageUrl: await findAllValidPotentialAssets(avatarPhoto?.storageBag, avatarPhoto?.id),
-          channelName: title,
-          channelUrl: `https://gleev.xyz/channel/${channelId}`,
-        })
-      )
+      response.channelPaymentMadeEvents
+        .slice(0, 30)
+        .map(
+          async ({ amount, payeeChannel: { id: channelId, avatarPhoto, title }, createdAt }) => ({
+            joyAmount: Math.round(Number(amount) / 10_000_000_000).toString(),
+            createdAt,
+            imageUrl: await findAllValidPotentialAssets(avatarPhoto?.storageBag, avatarPhoto?.id),
+            channelName: title,
+            channelUrl: `https://gleev.xyz/channel/${channelId}`,
+          })
+        )
     )
   )
     .filter((payout: any) => payout.imageUrl.length > 0)
     .slice(0, NUMBER_OF_ITMES_TO_FETCH);
 
-  return result;
+  return { nfts, proposals, payouts };
+};
+
+const parseAuxiliaryData = (response: {
+  videos: Array<GenericObject>;
+  channels: Array<GenericObject>;
+  memberships: Array<GenericObject>;
+  comments: Array<GenericObject>;
+  videoReactions: Array<GenericObject>;
+  commentReactions: Array<GenericObject>;
+  channelPaymentMadeEvents: Array<ChannelPaymentEvent>;
+}) => {
+  const {
+    videos,
+    channels,
+    memberships,
+    comments,
+    videoReactions,
+    commentReactions,
+    channelPaymentMadeEvents,
+  } = response;
+  return {
+    numberOfVideos: videos.length,
+    numberOfCommentsAndReactions: comments.length + videoReactions.length + commentReactions.length,
+    numberOfChannels: channels.length,
+    numberOfMemberships: memberships.length,
+    totalPayouts: channelPaymentMadeEvents.reduce((acc, prev) => acc + Number(prev.amount), 0),
+  };
+};
+
+const getLandingPageQNData = async () => {
+  await api.init;
+
+  const result: { nfts: Array<{}>; proposals: Array<{}>; payouts: Array<{}> } = {
+    nfts: [],
+    proposals: [],
+    payouts: [],
+  };
+
+  const response = await api.qnQuery<{
+    videos: Array<GenericObject>;
+    channels: Array<GenericObject>;
+    memberships: Array<GenericObject>;
+    comments: Array<GenericObject>;
+    videoReactions: Array<GenericObject>;
+    commentReactions: Array<GenericObject>;
+    ownedNfts: Array<NFT>;
+    proposals: Array<Proposal>;
+    channelPaymentMadeEvents: Array<ChannelPaymentEvent>;
+  }>(getLandingPageQuery(NUMBER_OF_ITMES_TO_FETCH));
+
+  if (!response) return result;
+
+  const { nfts, proposals, payouts } = await parseCarouselData(response);
+
+  const { numberOfVideos, numberOfCommentsAndReactions, numberOfChannels, numberOfMemberships } =
+    parseAuxiliaryData(response);
+
+  return {
+    nfts,
+    proposals,
+    payouts,
+    numberOfVideos,
+    numberOfCommentsAndReactions,
+    numberOfChannels,
+    numberOfMemberships,
+  };
 };
 
 export default getLandingPageQNData;
