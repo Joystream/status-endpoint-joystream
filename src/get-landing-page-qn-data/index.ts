@@ -292,6 +292,7 @@ const getLandingPageQNData = async () => {
     channelPaymentMadeEvents: Array<ChannelPaymentGenericObject>;
   }>(getLandingPageQuery(NUMBER_OF_ITEMS_TO_FETCH)["auxiliaryData"]);
 
+  // TODO: Update the secret (as it was changed) and move it to a .env file.
   const orionSessionResponse = await axios.post("https://orion.gleev.xyz/api/v1/anonymous-auth", {
     userId: "q*zWoLnHzVF_M6QrBKxU",
   });
