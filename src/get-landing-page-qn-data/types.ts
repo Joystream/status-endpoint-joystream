@@ -70,4 +70,17 @@ type GenericObject = {
   id: string;
 };
 
-export { StorageBag, NFT, Proposal, ChannelPaymentEvent, ProposalParameter, GenericObject };
+type ChannelPaymentGenericObject = {
+  createdAt: string;
+  amount: string;
+};
+
+export {
+  StorageBag,
+  NFT,
+  Proposal,
+  ChannelPaymentEvent,
+  ProposalParameter,
+  GenericObject,
+  ChannelPaymentGenericObject,
+};

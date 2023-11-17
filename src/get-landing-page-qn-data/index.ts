@@ -8,11 +8,12 @@ import {
   StorageBag,
   ProposalParameter,
   GenericObject,
+  ChannelPaymentGenericObject,
 } from "./types";
 
 const api = new JoyApi();
 
-const NUMBER_OF_ITMES_TO_FETCH = 10;
+const NUMBER_OF_ITEMS_TO_FETCH = 10;
 const BLOCK_INTERVAL_IN_SECONDS = 6;
 
 const PROPOSAL_STATUS = "ProposalStatus";
@@ -190,9 +191,34 @@ const parseCarouselData = async (response: {
     )
   )
     .filter((payout: any) => payout.imageUrl.length > 0)
-    .slice(0, NUMBER_OF_ITMES_TO_FETCH);
+    .slice(0, NUMBER_OF_ITEMS_TO_FETCH);
 
   return { nfts, proposals, payouts };
+};
+
+const calculateCurrentWeekChange = (
+  items: Array<{ createdAt: string; amount?: string; id?: string }>,
+  totalAmount: number
+) => {
+  if (items.length === 0) return 0;
+
+  const currentWeekAmount = items.reduce((acc: number, prev) => {
+    const inputDate = new Date(prev.createdAt);
+    const currentDate = new Date();
+    const oneWeekAgo = new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    if (inputDate >= oneWeekAgo && inputDate <= currentDate) {
+      if (prev?.amount) {
+        return acc + Number(prev.amount);
+      }
+
+      return acc + 1;
+    }
+
+    return acc;
+  }, 0);
+
+  return Math.round((currentWeekAmount / totalAmount) * 100);
 };
 
 const parseAuxiliaryData = (response: {
@@ -202,7 +228,7 @@ const parseAuxiliaryData = (response: {
   comments: Array<GenericObject>;
   videoReactions: Array<GenericObject>;
   commentReactions: Array<GenericObject>;
-  channelPaymentMadeEvents: Array<ChannelPaymentEvent>;
+  channelPaymentMadeEvents: Array<ChannelPaymentGenericObject>;
 }) => {
   const {
     videos,
@@ -213,12 +239,31 @@ const parseAuxiliaryData = (response: {
     commentReactions,
     channelPaymentMadeEvents,
   } = response;
+
+  const numberOfVideos = videos.length;
+  const numberOfCommentsAndReactions =
+    comments.length + videoReactions.length + commentReactions.length;
+  const numberOfChannels = channels.length;
+  const numberOfMemberships = memberships.length;
+  const totalPayouts = channelPaymentMadeEvents.reduce(
+    (acc: number, prev: ChannelPaymentGenericObject) => acc + Number(prev.amount),
+    0
+  );
+
   return {
-    numberOfVideos: videos.length,
-    numberOfCommentsAndReactions: comments.length + videoReactions.length + commentReactions.length,
-    numberOfChannels: channels.length,
-    numberOfMemberships: memberships.length,
-    totalPayouts: channelPaymentMadeEvents.reduce((acc, prev) => acc + Number(prev.amount), 0),
+    numberOfVideos,
+    numberOfVideosChange: calculateCurrentWeekChange(videos, numberOfVideos),
+    numberOfCommentsAndReactions,
+    numberOfCommentsAndReactionsChange: calculateCurrentWeekChange(
+      [...comments, ...videoReactions, ...commentReactions],
+      numberOfCommentsAndReactions
+    ),
+    numberOfChannels,
+    numberOfChannelsChange: calculateCurrentWeekChange(channels, numberOfChannels),
+    numberOfMemberships,
+    numberOfMembershipsChange: calculateCurrentWeekChange(memberships, numberOfMemberships),
+    totalPayouts,
+    totalPayoutsChange: calculateCurrentWeekChange(channelPaymentMadeEvents, totalPayouts),
   };
 };
 
@@ -231,33 +276,39 @@ const getLandingPageQNData = async () => {
     payouts: [],
   };
 
-  const response = await api.qnQuery<{
+  const carouselDataResponse = await api.qnQuery<{
+    ownedNfts: Array<NFT>;
+    proposals: Array<Proposal>;
+    channelPaymentMadeEvents: Array<ChannelPaymentEvent>;
+  }>(getLandingPageQuery(NUMBER_OF_ITEMS_TO_FETCH)["carouselData"]);
+
+  const auxiliaryDataResponse = await api.qnQuery<{
     videos: Array<GenericObject>;
     channels: Array<GenericObject>;
     memberships: Array<GenericObject>;
     comments: Array<GenericObject>;
     videoReactions: Array<GenericObject>;
     commentReactions: Array<GenericObject>;
-    ownedNfts: Array<NFT>;
-    proposals: Array<Proposal>;
-    channelPaymentMadeEvents: Array<ChannelPaymentEvent>;
-  }>(getLandingPageQuery(NUMBER_OF_ITMES_TO_FETCH));
+    channelPaymentMadeEvents: Array<ChannelPaymentGenericObject>;
+  }>(getLandingPageQuery(NUMBER_OF_ITEMS_TO_FETCH)["auxiliaryData"]);
 
-  if (!response) return result;
+  const orionSessionResponse = await axios.post("https://orion.gleev.xyz/api/v1/anonymous-auth", {
+    userId: "q*zWoLnHzVF_M6QrBKxU",
+  });
 
-  const { nfts, proposals, payouts } = await parseCarouselData(response);
+  // TODO: Continue implementing rest of orion functionality..
 
-  const { numberOfVideos, numberOfCommentsAndReactions, numberOfChannels, numberOfMemberships } =
-    parseAuxiliaryData(response);
+  if (!carouselDataResponse || !auxiliaryDataResponse) return result;
+
+  const { nfts, proposals, payouts } = await parseCarouselData(carouselDataResponse);
+
+  const auxiliaryData = parseAuxiliaryData(auxiliaryDataResponse);
 
   return {
     nfts,
     proposals,
     payouts,
-    numberOfVideos,
-    numberOfCommentsAndReactions,
-    numberOfChannels,
-    numberOfMemberships,
+    ...auxiliaryData,
   };
 };
 
