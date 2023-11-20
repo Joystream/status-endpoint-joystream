@@ -75,6 +75,11 @@ type ChannelPaymentGenericObject = {
   amount: string;
 };
 
+type OrionChannelGenericObject = {
+  id: string;
+  followsNum: number;
+};
+
 export {
   StorageBag,
   NFT,
@@ -83,4 +88,5 @@ export {
   ProposalParameter,
   GenericObject,
   ChannelPaymentGenericObject,
+  OrionChannelGenericObject,
 };

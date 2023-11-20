@@ -31,14 +31,31 @@ const scheduleCronJob = async () => {
   console.log("Scheduling cron job...");
 
   const fetchAndWriteLandingPageData = async () => {
-    let price = await getPrice();
-    let budgets = await getBudgets();
-    const { nfts, proposals, payouts, ...rest } = await getLandingPageQNData();
+    const [
+      circulatingSupplyData,
+      totalSupplyData,
+      price,
+      budgets,
+      { nfts, proposals, payouts, creators, ...rest },
+    ] = await Promise.all([
+      getCirculatingSupply(),
+      getTotalSupply(),
+      getPrice(),
+      getBudgets(),
+      getLandingPageQNData(),
+    ]);
 
     fs.writeFileSync(
       LANDING_PAGE_DATA_PATH,
       JSON.stringify(
-        { ...price, budgets, carouselData: { nfts, proposals, payouts }, ...rest },
+        {
+          ...price,
+          ...circulatingSupplyData,
+          ...totalSupplyData,
+          budgets,
+          carouselData: { nfts, proposals, payouts, creators },
+          ...rest,
+        },
         null,
         2
       )

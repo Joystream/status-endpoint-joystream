@@ -86,7 +86,7 @@ export const getLandingPageQuery = (numberOfCarouselItems: number) => ({
         }
       }
     },
-    channelPaymentMadeEvents(limit: 30, orderBy: createdAt_DESC) {
+    channelPaymentMadeEvents(limit: 1000, orderBy: createdAt_DESC) {
       createdAt
       amount
       payeeChannel {
@@ -113,4 +113,13 @@ export const getLandingPageQuery = (numberOfCarouselItems: number) => ({
     }
   }
   `,
+  orionData: `{
+    channels(limit: 100000000, orderBy: followsNum_DESC) {
+      id
+      followsNum
+    },
+    channelFollows {
+      id
+    }
+  }`,
 });
