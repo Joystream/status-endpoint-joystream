@@ -1,6 +1,6 @@
 import axios from "axios";
 import { JoyApi } from "../joyApi";
-import { getLandingPageQuery } from "./query";
+import { landingPageQueries, getStorageBag } from "./query";
 import {
   NFT,
   Proposal,
@@ -8,8 +8,9 @@ import {
   StorageBag,
   ProposalParameter,
   GenericObject,
-  ChannelPaymentGenericObject,
+  SimpleChannelPaymentEvent,
   OrionChannelGenericObject,
+  OrionChannelFollows,
 } from "./types";
 
 if (process.env.ORION_OPERATOR_SECRET === undefined) {
@@ -20,6 +21,7 @@ const ORION_OPERATOR_SECRET = process.env.ORION_OPERATOR_SECRET;
 const api = new JoyApi();
 
 const NUMBER_OF_ITEMS_TO_FETCH = 10;
+const NUMBER_OF_ITEMS_TO_FETCH_WITH_BUFFER = NUMBER_OF_ITEMS_TO_FETCH + 20;
 const BLOCK_INTERVAL_IN_SECONDS = 6;
 
 const PROPOSAL_STATUS = "ProposalStatus";
@@ -117,7 +119,6 @@ const findAllValidPotentialAssets = async (storageBag?: StorageBag, assetId?: st
     const url = `${nodeEndpoint}api/v1/assets/${assetId}`;
 
     try {
-      // TODO: It might make sense to increase the timeout here.
       await axios.head(url, { timeout: 2500 });
 
       resultArr.push(url);
@@ -131,13 +132,28 @@ const findAllValidPotentialAssets = async (storageBag?: StorageBag, assetId?: st
   return resultArr;
 };
 
+const findStorageBagAndAssets = async (storageBagId?: string, avatarPhotoId?: string) => {
+  if (!storageBagId || !avatarPhotoId) return [];
+
+  const data = await api.qnQuery<{
+    storageBags: Array<StorageBag>;
+  }>(getStorageBag(storageBagId));
+
+  if (!data) return [];
+
+  const storageBag = data.storageBags[0];
+
+  return await findAllValidPotentialAssets(storageBag, avatarPhotoId);
+};
+
 const parseCarouselData = async (
   response: {
     ownedNfts: Array<NFT>;
     proposals: Array<Proposal>;
     channelPaymentMadeEvents: Array<ChannelPaymentEvent>;
   },
-  orionChannels: Array<OrionChannelGenericObject>
+  orionChannels: Array<OrionChannelGenericObject>,
+  simpleChannelPaymentEvents: Array<SimpleChannelPaymentEvent>
 ) => {
   const nfts = await Promise.all(
     response.ownedNfts.map(
@@ -186,17 +202,15 @@ const parseCarouselData = async (
 
   const payouts = (
     await Promise.all(
-      response.channelPaymentMadeEvents
-        .slice(0, 30)
-        .map(
-          async ({ amount, payeeChannel: { id: channelId, avatarPhoto, title }, createdAt }) => ({
-            joyAmount: Math.round(Number(amount) / 10_000_000_000).toString(),
-            createdAt,
-            imageUrl: await findAllValidPotentialAssets(avatarPhoto?.storageBag, avatarPhoto?.id),
-            channelName: title,
-            channelUrl: `https://gleev.xyz/channel/${channelId}`,
-          })
-        )
+      response.channelPaymentMadeEvents.map(
+        async ({ amount, payeeChannel: { id: channelId, avatarPhoto, title }, createdAt }) => ({
+          joyAmount: Math.round(Number(amount) / 10_000_000_000).toString(),
+          createdAt,
+          imageUrl: await findAllValidPotentialAssets(avatarPhoto?.storageBag, avatarPhoto?.id),
+          channelName: title,
+          channelUrl: `https://gleev.xyz/channel/${channelId}`,
+        })
+      )
     )
   )
     .filter((payout: any) => payout.imageUrl.length > 0)
@@ -207,12 +221,12 @@ const parseCarouselData = async (
     {
       id: string;
       title: string;
-      avatarPhoto: { storageBag?: StorageBag; id?: string };
+      avatarPhoto: { storageBag?: { id: string }; id?: string };
       amount: number;
     }
   > = {};
 
-  for (let channelPaymentMadeEvent of response.channelPaymentMadeEvents) {
+  for (let channelPaymentMadeEvent of simpleChannelPaymentEvents) {
     if (creatorsObject[channelPaymentMadeEvent.payeeChannel.id]) {
       creatorsObject[channelPaymentMadeEvent.payeeChannel.id].amount += Number(
         channelPaymentMadeEvent.amount
@@ -230,26 +244,29 @@ const parseCarouselData = async (
   const creators = await Promise.all(
     Object.values(creatorsObject)
       .sort((a, b) => b.amount - a.amount)
-      .slice(0, NUMBER_OF_ITEMS_TO_FETCH)
+      .slice(0, NUMBER_OF_ITEMS_TO_FETCH_WITH_BUFFER)
       .map(async ({ amount, avatarPhoto, ...rest }) => ({
         followsNum: orionChannels.find((channel) => channel.id === rest.id)?.followsNum,
         amount: Math.round(Number(amount) / 10_000_000_000).toString(),
-        imageUrl: await findAllValidPotentialAssets(avatarPhoto?.storageBag, avatarPhoto?.id),
+        imageUrl: await findStorageBagAndAssets(avatarPhoto?.storageBag?.id, avatarPhoto?.id),
         ...rest,
       }))
+      .slice(0, NUMBER_OF_ITEMS_TO_FETCH)
   );
 
   return { nfts, proposals, payouts, creators };
 };
 
 const calculateCurrentWeekChange = (
-  items: Array<{ createdAt: string; amount?: string; id?: string }>,
+  items: Array<{ createdAt?: string; timestamp?: string; amount?: string; id?: string }>,
   totalAmount: number
 ) => {
   if (items.length === 0) return 0;
 
   const currentWeekAmount = items.reduce((acc: number, prev) => {
-    const inputDate = new Date(prev.createdAt);
+    const inputDateString = (prev?.createdAt ? prev.createdAt : prev?.timestamp) as string;
+
+    const inputDate = new Date(inputDateString);
     const currentDate = new Date();
     const oneWeekAgo = new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000);
 
@@ -274,8 +291,9 @@ const parseAuxiliaryData = (response: {
   comments: Array<GenericObject>;
   videoReactions: Array<GenericObject>;
   commentReactions: Array<GenericObject>;
-  channelPaymentMadeEvents: Array<ChannelPaymentGenericObject>;
+  channelPaymentMadeEvents: Array<SimpleChannelPaymentEvent>;
   orionChannels: Array<OrionChannelGenericObject>;
+  orionChannelFollows: Array<OrionChannelFollows>;
 }) => {
   const {
     videos,
@@ -285,18 +303,18 @@ const parseAuxiliaryData = (response: {
     videoReactions,
     commentReactions,
     channelPaymentMadeEvents,
+    orionChannelFollows,
   } = response;
 
   const numberOfVideos = videos.length;
   const numberOfCommentsAndReactions =
     comments.length + videoReactions.length + commentReactions.length;
   const numberOfChannels = channels.length;
+  const numberOfFollowers = orionChannelFollows.length;
   const numberOfMemberships = memberships.length;
-  const totalPayouts = Math.round(
-    channelPaymentMadeEvents.reduce(
-      (acc: number, prev: ChannelPaymentGenericObject) => acc + Number(prev.amount),
-      0
-    ) / 10_000_000_000
+  const totalPayouts = channelPaymentMadeEvents.reduce(
+    (acc: number, prev: SimpleChannelPaymentEvent) => acc + Number(prev.amount),
+    0
   );
 
   return {
@@ -309,9 +327,11 @@ const parseAuxiliaryData = (response: {
     ),
     numberOfChannels,
     numberOfChannelsChange: calculateCurrentWeekChange(channels, numberOfChannels),
+    numberOfFollowers,
+    numberOfFollowersChange: calculateCurrentWeekChange(orionChannelFollows, numberOfFollowers),
     numberOfMemberships,
     numberOfMembershipsChange: calculateCurrentWeekChange(memberships, numberOfMemberships),
-    totalPayouts,
+    totalPayouts: Math.round(totalPayouts / 10_000_000_000),
     totalPayoutsChange: calculateCurrentWeekChange(channelPaymentMadeEvents, totalPayouts),
   };
 };
@@ -319,29 +339,30 @@ const parseAuxiliaryData = (response: {
 const getLandingPageQNData = async () => {
   await api.init;
 
-  const result: { nfts: Array<{}>; proposals: Array<{}>; payouts: Array<{}>; creators: Array<{}> } =
-    {
-      nfts: [],
-      proposals: [],
-      payouts: [],
-      creators: [],
-    };
-
-  const [carouselDataResponse, auxiliaryDataResponse] = await Promise.all([
+  const [
+    carouselDataResponse,
+    videosAndChannelsResponse,
+    auxiliaryDataResponse,
+    simpleChannelPaymentEventsResponse,
+  ] = await Promise.all([
     api.qnQuery<{
       ownedNfts: Array<NFT>;
       proposals: Array<Proposal>;
       channelPaymentMadeEvents: Array<ChannelPaymentEvent>;
-    }>(getLandingPageQuery(NUMBER_OF_ITEMS_TO_FETCH)["carouselData"]),
+    }>(landingPageQueries["carouselData"](NUMBER_OF_ITEMS_TO_FETCH)),
     api.qnQuery<{
       videos: Array<GenericObject>;
       channels: Array<GenericObject>;
+    }>(landingPageQueries["videosAndChannels"]),
+    api.qnQuery<{
       memberships: Array<GenericObject>;
       comments: Array<GenericObject>;
       videoReactions: Array<GenericObject>;
       commentReactions: Array<GenericObject>;
-      channelPaymentMadeEvents: Array<ChannelPaymentGenericObject>;
-    }>(getLandingPageQuery(NUMBER_OF_ITEMS_TO_FETCH)["auxiliaryData"]),
+    }>(landingPageQueries["auxiliaryData"]),
+    api.qnQuery<{
+      channelPaymentMadeEvents: Array<SimpleChannelPaymentEvent>;
+    }>(landingPageQueries["simplePayments"]),
   ]);
 
   let orionResponse = null;
@@ -353,7 +374,7 @@ const getLandingPageQNData = async () => {
     orionResponse = await axios.post(
       "https://orion.gleev.xyz/graphql",
       {
-        query: getLandingPageQuery(NUMBER_OF_ITEMS_TO_FETCH)["orionData"],
+        query: landingPageQueries["orionData"],
       },
       {
         headers: {
@@ -367,15 +388,38 @@ const getLandingPageQNData = async () => {
     );
   } catch (e) {}
 
-  if (!carouselDataResponse || !auxiliaryDataResponse || !orionResponse) return result;
+  // The reasoning behind checking each one separately is for typescript type inference
+  if (
+    !orionResponse ||
+    !carouselDataResponse ||
+    !videosAndChannelsResponse ||
+    !auxiliaryDataResponse ||
+    !simpleChannelPaymentEventsResponse
+  ) {
+    return {
+      nfts: [],
+      proposals: [],
+      payouts: [],
+      creators: [],
+    };
+  }
+
+  const { channels, channelFollows } = orionResponse.data.data as {
+    channels: Array<OrionChannelGenericObject>;
+    channelFollows: Array<OrionChannelFollows>;
+  };
 
   const { nfts, proposals, payouts, creators } = await parseCarouselData(
     carouselDataResponse,
-    orionResponse.data.data.channels as Array<OrionChannelGenericObject>
+    channels,
+    simpleChannelPaymentEventsResponse.channelPaymentMadeEvents
   );
 
   const auxiliaryData = parseAuxiliaryData({
-    orionChannels: orionResponse.data.data.channels as Array<OrionChannelGenericObject>,
+    orionChannels: channels,
+    ...videosAndChannelsResponse,
+    orionChannelFollows: channelFollows,
+    channelPaymentMadeEvents: simpleChannelPaymentEventsResponse.channelPaymentMadeEvents,
     ...auxiliaryDataResponse,
   });
 

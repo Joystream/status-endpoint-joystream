@@ -1,7 +1,7 @@
 const NO_LIMIT_NUMBER = 1_000_000;
 
-export const getLandingPageQuery = (numberOfCarouselItems: number) => ({
-  auxiliaryData: `
+export const landingPageQueries = {
+  videosAndChannels: `
   {
     videos(limit: ${NO_LIMIT_NUMBER}) {
       createdAt
@@ -13,7 +13,10 @@ export const getLandingPageQuery = (numberOfCarouselItems: number) => ({
     ) {
       createdAt
       id
-    },
+    }
+  }`,
+  auxiliaryData: `
+  {,
     memberships(limit: ${NO_LIMIT_NUMBER}) {
       createdAt
       id
@@ -29,13 +32,26 @@ export const getLandingPageQuery = (numberOfCarouselItems: number) => ({
     commentReactions(limit: ${NO_LIMIT_NUMBER}) {
       createdAt
       id
-    },
+    }
+  }`,
+  simplePayments: `
+    {
     channelPaymentMadeEvents(limit: ${NO_LIMIT_NUMBER}, orderBy: createdAt_DESC) {
       createdAt
       amount
+      payeeChannel {
+        id
+        title
+        avatarPhoto {
+          id
+          storageBag {
+            id
+          }
+        }
+      }
     }
   }`,
-  carouselData: `
+  carouselData: (numberOfCarouselItems: number) => `
   {
     ownedNfts(
       limit: ${numberOfCarouselItems}
@@ -86,17 +102,12 @@ export const getLandingPageQuery = (numberOfCarouselItems: number) => ({
         }
       }
     },
-    channelPaymentMadeEvents(limit: 1000, orderBy: createdAt_DESC) {
+    channelPaymentMadeEvents(limit: 30, orderBy: createdAt_DESC) {
       createdAt
       amount
       payeeChannel {
         id
         title
-        rewardAccount
-        ownerMember {
-          id
-          handle
-        }
         avatarPhoto {
           id,
           storageBag {
@@ -114,12 +125,27 @@ export const getLandingPageQuery = (numberOfCarouselItems: number) => ({
   }
   `,
   orionData: `{
-    channels(limit: 100000000, orderBy: followsNum_DESC) {
+    channels(limit: ${NO_LIMIT_NUMBER}, orderBy: followsNum_DESC) {
       id
       followsNum
     },
-    channelFollows {
+    channelFollows(limit: ${NO_LIMIT_NUMBER}) {
+      timestamp
       id
     }
   }`,
-});
+};
+
+export const getStorageBag = (storageBagId: string) => `
+ {
+  storageBags(where: { id_eq: "${storageBagId}" }) {
+    distributionBuckets {
+      operators {
+        metadata {
+          nodeEndpoint
+        }
+      }
+    }
+  }
+ }
+`;

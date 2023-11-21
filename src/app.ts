@@ -10,7 +10,7 @@ import { log } from "./debug";
 import getLandingPageQNData from "./get-landing-page-qn-data";
 import getPrice from "./get-price";
 import getCirculatingSupply from "./get-circulating-supply";
-import { calculateSecondsUntilNext5MinuteInterval } from "./utils";
+import { calculateSecondsUntilNextInterval } from "./utils";
 import getTotalSupply from "./get-total-supply";
 import getAddresses from "./get-addresses";
 
@@ -93,8 +93,7 @@ const scheduleCronJob = async () => {
     await fetchAndWriteSupplyData();
   if (!fs.existsSync(LANDING_PAGE_DATA_PATH)) await fetchAndWriteLandingPageData();
 
-  // TODO: This data should be converted to landing page data and moved to 1h+ cache.
-  cron.schedule("*/5 * * * *", fetchAndWriteLandingPageData);
+  cron.schedule("0 * * * *", fetchAndWriteLandingPageData);
   cron.schedule("*/5 * * * *", fetchAndWriteSupplyData);
 };
 
@@ -126,7 +125,7 @@ app.get("/circulating-supply", async (req, res) => {
     return;
   }
 
-  res.setHeader("Retry-After", calculateSecondsUntilNext5MinuteInterval());
+  res.setHeader("Retry-After", calculateSecondsUntilNextInterval(5));
   res.status(503).send();
 });
 
@@ -140,7 +139,7 @@ app.get("/total-supply", async (req, res) => {
     return;
   }
 
-  res.setHeader("Retry-After", calculateSecondsUntilNext5MinuteInterval());
+  res.setHeader("Retry-After", calculateSecondsUntilNextInterval(5));
   res.status(503).send();
 });
 
@@ -154,7 +153,7 @@ app.get("/addresses", async (req, res) => {
     return;
   }
 
-  res.setHeader("Retry-After", calculateSecondsUntilNext5MinuteInterval());
+  res.setHeader("Retry-After", calculateSecondsUntilNextInterval(5));
   res.status(503).send();
 });
 
@@ -176,13 +175,13 @@ app.get("/address", async (req, res) => {
     return;
   }
 
-  res.setHeader("Retry-After", calculateSecondsUntilNext5MinuteInterval());
+  res.setHeader("Retry-After", calculateSecondsUntilNextInterval(5));
   res.status(503).send();
 });
 
 app.get("/address_ui", async (req, res) => {
   if (!fs.existsSync(ADDRESSES_DATA_PATH)) {
-    res.setHeader("Retry-After", calculateSecondsUntilNext5MinuteInterval());
+    res.setHeader("Retry-After", calculateSecondsUntilNextInterval(5));
     res.status(503).send();
     return;
   }
@@ -210,7 +209,8 @@ app.get("/landing-page-data", async (req, res) => {
     return;
   }
 
-  res.setHeader("Retry-After", calculateSecondsUntilNext5MinuteInterval());
+  // update to 1h
+  res.setHeader("Retry-After", calculateSecondsUntilNextInterval(60));
   res.status(503).send();
 });
 

@@ -70,14 +70,29 @@ type GenericObject = {
   id: string;
 };
 
-type ChannelPaymentGenericObject = {
+type SimpleChannelPaymentEvent = {
   createdAt: string;
   amount: string;
+  payeeChannel: {
+    id: string;
+    title: string;
+    avatarPhoto: {
+      id: string;
+      storageBag: {
+        id: string;
+      };
+    };
+  };
 };
 
 type OrionChannelGenericObject = {
   id: string;
   followsNum: number;
+};
+
+type OrionChannelFollows = {
+  id: string;
+  timestamp: string;
 };
 
 export {
@@ -87,6 +102,7 @@ export {
   ChannelPaymentEvent,
   ProposalParameter,
   GenericObject,
-  ChannelPaymentGenericObject,
+  SimpleChannelPaymentEvent,
   OrionChannelGenericObject,
+  OrionChannelFollows,
 };

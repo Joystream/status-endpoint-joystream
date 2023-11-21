@@ -1,9 +1,9 @@
-export const calculateSecondsUntilNext5MinuteInterval = () => {
-  const FIVE_MINUTES_IN_MILLISECONDS = 1000 * 60 * 5;
+export const calculateSecondsUntilNextInterval = (seconds: number) => {
+  const MINUTES_IN_MILLISECONDS = 1000 * 60 * seconds;
 
   const now = new Date();
   const next5MinuteInterval = new Date(
-    Math.ceil(now.getTime() / FIVE_MINUTES_IN_MILLISECONDS) * FIVE_MINUTES_IN_MILLISECONDS
+    Math.ceil(now.getTime() / MINUTES_IN_MILLISECONDS) * MINUTES_IN_MILLISECONDS
   );
 
   return Math.floor((next5MinuteInterval.getTime() - now.getTime()) / 1000);
