@@ -245,10 +245,11 @@ const parseCarouselData = async (
     Object.values(creatorsObject)
       .sort((a, b) => b.amount - a.amount)
       .slice(0, NUMBER_OF_ITEMS_TO_FETCH_WITH_BUFFER)
-      .map(async ({ amount, avatarPhoto, ...rest }) => ({
-        followsNum: orionChannels.find((channel) => channel.id === rest.id)?.followsNum,
+      .map(async ({ amount, avatarPhoto, id, ...rest }) => ({
+        followsNum: orionChannels.find((channel) => channel.id === id)?.followsNum,
         amount: Math.round(Number(amount) / 10_000_000_000).toString(),
         imageUrl: await findStorageBagAndAssets(avatarPhoto?.storageBag?.id, avatarPhoto?.id),
+        channelUrl: `https://gleev.xyz/channel/${id}`,
         ...rest,
       }))
       .slice(0, NUMBER_OF_ITEMS_TO_FETCH)

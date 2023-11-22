@@ -209,7 +209,6 @@ app.get("/landing-page-data", async (req, res) => {
     return;
   }
 
-  // update to 1h
   res.setHeader("Retry-After", calculateSecondsUntilNextInterval(60));
   res.status(503).send();
 });
