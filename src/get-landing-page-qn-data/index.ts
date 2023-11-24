@@ -16,7 +16,11 @@ import {
 if (process.env.ORION_OPERATOR_SECRET === undefined) {
   throw new Error("Missing QUERY_NODE in .env!");
 }
+if (process.env.SUBSCAN_API_KEY === undefined) {
+  throw new Error("Missing SUBSCAN_API_KEY in .env!");
+}
 const ORION_OPERATOR_SECRET = process.env.ORION_OPERATOR_SECRET;
+const SUBSCAN_API_KEY = process.env.SUBSCAN_API_KEY;
 
 const api = new JoyApi();
 
@@ -337,6 +341,44 @@ const parseAuxiliaryData = (response: {
   };
 };
 
+const getPriceData = async () => {
+  const endDate = new Date();
+  const startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const end = endDate.toISOString().split("T")[0];
+  const start = startDate.toISOString().split("T")[0];
+
+  try {
+    const priceResponse = await axios.post(
+      `https://joystream.api.subscan.io/api/scan/price/history`,
+      {
+        currency: "string",
+        end,
+        format: "hour",
+        start,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": SUBSCAN_API_KEY,
+        },
+      }
+    );
+
+    const tokenPrices = priceResponse.data.data.list;
+    const lastWeekValue = Number(tokenPrices[0].price);
+    const currentValue = Number(tokenPrices[tokenPrices.length - 1].price);
+    const lastWeekChange = ((currentValue - lastWeekValue) / lastWeekValue) * 100;
+
+    return {
+      tokenPrices,
+      lastWeekChange,
+    };
+  } catch (e) {
+    return null;
+  }
+};
+
 const getLandingPageQNData = async () => {
   await api.init;
 
@@ -353,13 +395,13 @@ const getLandingPageQNData = async () => {
     }>(landingPageQueries["carouselData"](NUMBER_OF_ITEMS_TO_FETCH)),
     api.qnQuery<{
       videos: Array<GenericObject>;
-      channels: Array<GenericObject>;
-    }>(landingPageQueries["videosAndChannels"]),
+    }>(landingPageQueries["videos"]),
     api.qnQuery<{
       memberships: Array<GenericObject>;
       comments: Array<GenericObject>;
       videoReactions: Array<GenericObject>;
       commentReactions: Array<GenericObject>;
+      channels: Array<GenericObject>;
     }>(landingPageQueries["auxiliaryData"]),
     api.qnQuery<{
       channelPaymentMadeEvents: Array<SimpleChannelPaymentEvent>;
@@ -389,6 +431,8 @@ const getLandingPageQNData = async () => {
     );
   } catch (e) {}
 
+  const priceData = await getPriceData();
+
   // The reasoning behind checking each one separately is for typescript type inference
   if (
     !orionResponse ||
@@ -402,6 +446,7 @@ const getLandingPageQNData = async () => {
       proposals: [],
       payouts: [],
       creators: [],
+      ...(priceData ? priceData : {}),
     };
   }
 
@@ -430,6 +475,7 @@ const getLandingPageQNData = async () => {
     payouts,
     creators,
     ...auxiliaryData,
+    ...priceData,
   };
 };
 

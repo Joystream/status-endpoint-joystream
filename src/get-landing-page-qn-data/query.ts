@@ -1,22 +1,15 @@
 const NO_LIMIT_NUMBER = 1_000_000;
 
 export const landingPageQueries = {
-  videosAndChannels: `
+  videos: `
   {
     videos(limit: ${NO_LIMIT_NUMBER}) {
-      createdAt
-      id
-    },
-    channels(
-      limit: ${NO_LIMIT_NUMBER}
-      where: { totalVideosCreated_gt: 0 }
-    ) {
       createdAt
       id
     }
   }`,
   auxiliaryData: `
-  {,
+  {
     memberships(limit: ${NO_LIMIT_NUMBER}) {
       createdAt
       id
@@ -30,6 +23,13 @@ export const landingPageQueries = {
       id
     },
     commentReactions(limit: ${NO_LIMIT_NUMBER}) {
+      createdAt
+      id
+    },
+    channels(
+      limit: ${NO_LIMIT_NUMBER}
+      where: { totalVideosCreated_gt: 0 }
+    ) {
       createdAt
       id
     }
