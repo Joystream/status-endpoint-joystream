@@ -250,7 +250,7 @@ const parseCarouselData = async (
       .sort((a, b) => b.amount - a.amount)
       .slice(0, NUMBER_OF_ITEMS_TO_FETCH_WITH_BUFFER)
       .map(async ({ amount, avatarPhoto, id, ...rest }) => ({
-        followsNum: orionChannels.find((channel) => channel.id === id)?.followsNum,
+        followsNum: orionChannels.find((channel) => channel.id === id)?.followsNum ?? 0,
         amount: Math.round(Number(amount) / 10_000_000_000).toString(),
         imageUrl: await findStorageBagAndAssets(avatarPhoto?.storageBag?.id, avatarPhoto?.id),
         channelUrl: `https://gleev.xyz/channel/${id}`,
@@ -379,34 +379,56 @@ const getPriceData = async () => {
   }
 };
 
-const getLandingPageQNData = async () => {
-  await api.init;
+// Due to sheer amount of objects needed to be queried, the following function
+// aims to fetch them in a paginated manner to avoid 502 and 504 errors.
+const fetchVideos = async () => {
+  let resultVideos: GenericObject[] = [];
+  let offset = 0;
+  const NUMBER_OF_VIDEOS_TO_FETCH = 200_000;
 
-  const [
-    carouselDataResponse,
-    videosAndChannelsResponse,
-    auxiliaryDataResponse,
-    simpleChannelPaymentEventsResponse,
-  ] = await Promise.all([
-    api.qnQuery<{
-      ownedNfts: Array<NFT>;
-      proposals: Array<Proposal>;
-      channelPaymentMadeEvents: Array<ChannelPaymentEvent>;
-    }>(landingPageQueries["carouselData"](NUMBER_OF_ITEMS_TO_FETCH)),
-    api.qnQuery<{
+  while (true) {
+    const videosResponse = await api.qnQuery<{
       videos: Array<GenericObject>;
-    }>(landingPageQueries["videos"]),
-    api.qnQuery<{
-      memberships: Array<GenericObject>;
-      comments: Array<GenericObject>;
-      videoReactions: Array<GenericObject>;
-      commentReactions: Array<GenericObject>;
-      channels: Array<GenericObject>;
-    }>(landingPageQueries["auxiliaryData"]),
-    api.qnQuery<{
-      channelPaymentMadeEvents: Array<SimpleChannelPaymentEvent>;
-    }>(landingPageQueries["simplePayments"]),
-  ]);
+    }>(landingPageQueries["videos"](offset, NUMBER_OF_VIDEOS_TO_FETCH));
+
+    if (!videosResponse) {
+      return [];
+    }
+
+    const { videos } = videosResponse;
+
+    resultVideos = [...resultVideos, ...videos];
+
+    if (videos.length < NUMBER_OF_VIDEOS_TO_FETCH) {
+      break;
+    }
+
+    offset += NUMBER_OF_VIDEOS_TO_FETCH;
+  }
+
+  return resultVideos;
+};
+
+const getCarouselData = async () => {
+  const videos = await fetchVideos();
+  const [carouselDataResponse, auxiliaryDataResponse, simpleChannelPaymentEventsResponse] =
+    await Promise.all([
+      api.qnQuery<{
+        ownedNfts: Array<NFT>;
+        proposals: Array<Proposal>;
+        channelPaymentMadeEvents: Array<ChannelPaymentEvent>;
+      }>(landingPageQueries["carouselData"](NUMBER_OF_ITEMS_TO_FETCH)),
+      api.qnQuery<{
+        memberships: Array<GenericObject>;
+        comments: Array<GenericObject>;
+        videoReactions: Array<GenericObject>;
+        commentReactions: Array<GenericObject>;
+        channels: Array<GenericObject>;
+      }>(landingPageQueries["auxiliaryData"]),
+      api.qnQuery<{
+        channelPaymentMadeEvents: Array<SimpleChannelPaymentEvent>;
+      }>(landingPageQueries["simplePayments"]),
+    ]);
 
   let orionResponse = null;
   try {
@@ -431,43 +453,40 @@ const getLandingPageQNData = async () => {
     );
   } catch (e) {}
 
-  const priceData = await getPriceData();
-
-  // The reasoning behind checking each one separately is for typescript type inference
-  if (
-    !orionResponse ||
-    !carouselDataResponse ||
-    !videosAndChannelsResponse ||
-    !auxiliaryDataResponse ||
-    !simpleChannelPaymentEventsResponse
-  ) {
-    return {
-      nfts: [],
-      proposals: [],
-      payouts: [],
-      creators: [],
-      ...(priceData ? priceData : {}),
-    };
-  }
-
-  const { channels, channelFollows } = orionResponse.data.data as {
-    channels: Array<OrionChannelGenericObject>;
-    channelFollows: Array<OrionChannelFollows>;
-  };
+  const channels = orionResponse?.data?.data?.channels ?? ([] as Array<OrionChannelGenericObject>);
+  const channelFollows =
+    orionResponse?.data?.data?.channelFollows ?? ([] as Array<OrionChannelFollows>);
+  const channelPaymentMadeEvents =
+    simpleChannelPaymentEventsResponse?.channelPaymentMadeEvents ?? [];
 
   const { nfts, proposals, payouts, creators } = await parseCarouselData(
-    carouselDataResponse,
+    carouselDataResponse ?? { ownedNfts: [], proposals: [], channelPaymentMadeEvents: [] },
     channels,
-    simpleChannelPaymentEventsResponse.channelPaymentMadeEvents
+    simpleChannelPaymentEventsResponse?.channelPaymentMadeEvents ?? []
   );
 
   const auxiliaryData = parseAuxiliaryData({
     orionChannels: channels,
-    ...videosAndChannelsResponse,
+    videos,
     orionChannelFollows: channelFollows,
-    channelPaymentMadeEvents: simpleChannelPaymentEventsResponse.channelPaymentMadeEvents,
-    ...auxiliaryDataResponse,
+    channelPaymentMadeEvents,
+    ...(auxiliaryDataResponse ?? {
+      memberships: [],
+      comments: [],
+      videoReactions: [],
+      commentReactions: [],
+      channels: [],
+    }),
   });
+
+  return { nfts, proposals, payouts, creators, auxiliaryData };
+};
+
+const getLandingPageQNData = async () => {
+  await api.init;
+
+  const priceData = (await getPriceData()) ?? { tokenPrices: [], lastWeekChange: 0 };
+  const { nfts, proposals, payouts, creators, auxiliaryData } = await getCarouselData();
 
   return {
     nfts,

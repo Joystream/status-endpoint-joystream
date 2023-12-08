@@ -1,9 +1,9 @@
 const NO_LIMIT_NUMBER = 1_000_000;
 
 export const landingPageQueries = {
-  videos: `
+  videos: (offset: number, limit: number) => `
   {
-    videos(limit: ${NO_LIMIT_NUMBER}) {
+    videos(offset: ${offset}, limit: ${limit}) {
       createdAt
       id
     }
