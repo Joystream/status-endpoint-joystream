@@ -71,5 +71,5 @@
     ],
     "types": ["node"]
   },
-  "include": ["src/*.ts"]
+  "include": ["src/*.ts", "src/get-landing-page-qn-data/index.ts"]
 }
