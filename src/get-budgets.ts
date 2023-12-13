@@ -28,7 +28,7 @@ const NonDescriptWorkingGroupMap: { [key: string] : string } = {
 
 type QNWorkingGroup = {
   name: string
-  workers: Array<{ isLead: boolean, membership: { handle: string, metadata: { avatar: null | { avatarUri: string } } }, rewardPerBlock: string }>
+  workers: Array<{ isLead: boolean, isActive: boolean, membership: { handle: string, metadata: { avatar: null | { avatarUri: string } } }, rewardPerBlock: string }>
 }
 
 type QNCouncil = Array<{ member: { metadata : { avatar: null | { avatarUri: string } } } }>
@@ -48,6 +48,7 @@ const workingGroupBudgetInfo = async (api: JoyApi) => {
       name,
       workers {
         isLead,
+        isActive,
         membership {
           handle,
           metadata {
@@ -69,13 +70,14 @@ const workingGroupBudgetInfo = async (api: JoyApi) => {
 
   for(let workingGroup of response.workingGroups) {
     const workingGroupName: string = workingGroup.name.includes("operations") ? NonDescriptWorkingGroupMap[workingGroup.name] : workingGroup.name;
+    const activeWorkers = workingGroup.workers.filter(worker => worker.isActive);
 
-    groupBudgets[workingGroupName] = { icons: [], weeklyEarnings: 0, numberOfWorkers: workingGroup.workers.length }
+    groupBudgets[workingGroupName] = { icons: [], weeklyEarnings: 0, numberOfWorkers: activeWorkers.length }
 
-    if(workingGroup.workers.length === 0)
+    if(activeWorkers.length === 0)
       continue;
 
-    for (let worker of workingGroup.workers) {
+    for (let worker of activeWorkers) {
       groupBudgets[workingGroupName].weeklyEarnings += calculateWeeklyJOYAmountFromBlockReward(api, Number(worker.rewardPerBlock));
       
       if(worker.membership.metadata.avatar)
