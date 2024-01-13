@@ -8,3 +8,15 @@ export const calculateSecondsUntilNextInterval = (seconds: number) => {
 
   return Math.floor((next5MinuteInterval.getTime() - now.getTime()) / 1000);
 };
+
+export const getDateWeeksAgo = (weeks: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() - weeks * 7);
+  return date;
+};
+
+export const getDateMonthsAgo = (months: number) => {
+  const date = new Date();
+  date.setMonth(date.getMonth() - months);
+  return date;
+};

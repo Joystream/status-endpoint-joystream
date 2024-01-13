@@ -1,8 +1,12 @@
 import assert from "assert";
+import { config } from "dotenv";
 import { Octokit } from "octokit";
 
 import { getNumberOfGithubItemsFromPageNumbers } from "./utils";
 import { GithubContributor } from "./types";
+import { getDateWeeksAgo, getDateMonthsAgo } from "../utils";
+
+config();
 
 assert(process.env.GITHUB_AUTH_TOKEN, "Missing environment variable: GITHUB_AUTH_TOKEN");
 
@@ -15,43 +19,68 @@ export class DashboardAPI {
     this.githubAPI = new Octokit({ auth: process.env.GITHUB_AUTH_TOKEN });
   }
 
+  async fetchAllRepoCommits(repoName: string, since: string) {
+    const MAX_COMMIT_NUMBER_PER_PAGE = 100;
+    const data = [];
+    let page = 1;
+
+    while (true) {
+      const { data: pageData } = await this.githubAPI.request(
+        "GET /repos/{username}/{repo}/commits",
+        {
+          page,
+          username: GITHUB_JOYSTREAM_ORGANIZATION_NAME,
+          repo: repoName,
+          per_page: MAX_COMMIT_NUMBER_PER_PAGE,
+          since,
+        }
+      );
+
+      data.push(...pageData);
+
+      if (pageData.length < MAX_COMMIT_NUMBER_PER_PAGE) {
+        break;
+      }
+
+      page++;
+    }
+
+    return data;
+  }
+
   async fetchRepoInformation(repoName: string) {
-    // TODO: The following calls can be optimized/parallelized.
-    const { data: generalRepoInformation } = await this.githubAPI.request(
-      "GET /repos/{username}/{repo}",
-      {
+    const twoMonthsAgoDate = getDateMonthsAgo(2);
+
+    const [
+      { data: generalRepoInformation },
+      { headers: pullRequestHeaders },
+      { headers: commitHeaders },
+      { data: contributors },
+      commits,
+    ] = await Promise.all([
+      this.githubAPI.request("GET /repos/{username}/{repo}", {
         username: GITHUB_JOYSTREAM_ORGANIZATION_NAME,
         repo: repoName,
-      }
-    );
-    const { headers: pullRequestHeaders } = await this.githubAPI.request(
-      "GET /repos/{owner}/{repo}/pulls",
-      {
+      }),
+      this.githubAPI.request("GET /repos/{owner}/{repo}/pulls", {
         owner: GITHUB_JOYSTREAM_ORGANIZATION_NAME,
         repo: repoName,
         per_page: 1,
         page: 1,
-      }
-    );
-    const { headers: commitHeaders } = await this.githubAPI.request(
-      "GET /repos/{username}/{repo}/commits",
-      {
+      }),
+      this.githubAPI.request("GET /repos/{username}/{repo}/commits", {
         username: GITHUB_JOYSTREAM_ORGANIZATION_NAME,
         repo: repoName,
         per_page: 1,
         page: 1,
-      }
-    );
-    const { data: contributors } = await this.githubAPI.request(
-      "GET /repos/{owner}/{repo}/contributors",
-      {
+      }),
+      this.githubAPI.request("GET /repos/{owner}/{repo}/contributors", {
         owner: GITHUB_JOYSTREAM_ORGANIZATION_NAME,
         repo: repoName,
         per_page: 5000,
-      }
-    );
-
-    // TODO: Implement commit data.
+      }),
+      this.fetchAllRepoCommits(repoName, twoMonthsAgoDate.toISOString()),
+    ]);
 
     const numberOfPullRequests = getNumberOfGithubItemsFromPageNumbers(pullRequestHeaders.link);
 
@@ -62,6 +91,7 @@ export class DashboardAPI {
       numberOfOpenIssues: generalRepoInformation.open_issues_count - numberOfPullRequests,
       numberOfPullRequests,
       contributors,
+      commits,
     };
   }
 
@@ -70,38 +100,65 @@ export class DashboardAPI {
   async getEngineeringData() {
     let totalNumberOfStars = 0;
     let totalNumberOfCommits = 0;
-    // let totalNumberOfCommitsThisWeek = 0;
+    let totalNumberOfCommitsThisWeek = 0;
     let totalNumberOfOpenPRs = 0;
     let totalNumberOfOpenIssues = 0;
     const githubContributors: { [key: string]: GithubContributor } = {};
+    const commitData: { [key: string]: { [key: string]: number } } = {};
 
-    const {
-      data: { public_repos, followers },
-    } = await this.githubAPI.request("GET /orgs/{org}", {
-      org: GITHUB_JOYSTREAM_ORGANIZATION_NAME,
-    });
+    const [
+      {
+        data: { public_repos, followers },
+      },
+      { data: repos },
+    ] = await Promise.all([
+      this.githubAPI.request("GET /orgs/{org}", {
+        org: GITHUB_JOYSTREAM_ORGANIZATION_NAME,
+      }),
+      this.githubAPI.request("GET /orgs/{org}/repos", {
+        org: GITHUB_JOYSTREAM_ORGANIZATION_NAME,
+        per_page: 1000,
+      }),
+    ]);
 
-    const { data: repos } = await this.githubAPI.request("GET /orgs/{org}/repos", {
-      org: GITHUB_JOYSTREAM_ORGANIZATION_NAME,
-      per_page: 1000,
-    });
+    const reposInformation = await Promise.all(
+      repos.map((repo) => this.fetchRepoInformation(repo.name))
+    );
 
-    const repoNames = repos.map((repo) => repo.name);
-
-    // TODO: Optimization possible. Parallelize as much as possible.
-    for (const repoName of repoNames) {
+    for (const repoInformation of reposInformation) {
       const {
         numberOfCommits,
         numberOfOpenIssues,
         numberOfPullRequests,
         numberOfStars,
         contributors,
-      } = await this.fetchRepoInformation(repoName);
+        commits,
+      } = repoInformation;
 
       totalNumberOfStars += numberOfStars;
       totalNumberOfCommits += numberOfCommits;
       totalNumberOfOpenIssues += numberOfOpenIssues;
       totalNumberOfOpenPRs += numberOfPullRequests;
+
+      const weekAgoDate = getDateWeeksAgo(1);
+
+      commits.forEach((commit) => {
+        if (new Date(commit.commit.author.date) > weekAgoDate) {
+          totalNumberOfCommitsThisWeek++;
+        }
+
+        const [_, month, day] = commit.commit.author.date.split("T")[0].split("-");
+
+        if (!commitData[month]) {
+          commitData[month] = {};
+        }
+
+        if (!commitData[month][day]) {
+          commitData[month][day] = 0;
+        }
+
+        commitData[month][day]++;
+      });
 
       contributors.forEach((contributor) => {
         if (contributor.login) {
@@ -118,15 +175,21 @@ export class DashboardAPI {
       });
     }
 
-    console.log(JSON.stringify(githubContributors, null, 2));
+    const topGithubContributors = Object.values(githubContributors)
+      .sort((a: any, b: any) => b.numberOfCommits - a.numberOfCommits)
+      .slice(0, 21)
+      .filter((contributor: any) => contributor.id !== "actions-user");
 
     return {
       numberOfRepositories: public_repos,
       numberOfFollowers: followers,
       numberOfStars: totalNumberOfStars,
       numberOfCommits: totalNumberOfCommits,
+      totalNumberOfCommitsThisWeek,
       numberOfOpenIssues: totalNumberOfOpenIssues,
       numberOfOpenPRs: totalNumberOfOpenPRs,
+      contributors: topGithubContributors,
+      commits: commitData,
     };
   }
 
