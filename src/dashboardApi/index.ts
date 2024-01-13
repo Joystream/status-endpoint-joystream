@@ -95,8 +95,16 @@ export class DashboardAPI {
     };
   }
 
-  // TODO: Be careful of unit usage.
-  // TODO: Verify correctness upon implementation.
+  async fetchGithubUsersRealName(githubUsername: string) {
+    const {
+      data: { name },
+    } = await this.githubAPI.request("GET /users/{username}", {
+      username: githubUsername,
+    });
+
+    return name;
+  }
+
   async getEngineeringData() {
     let totalNumberOfStars = 0;
     let totalNumberOfCommits = 0;
@@ -175,10 +183,16 @@ export class DashboardAPI {
       });
     }
 
-    const topGithubContributors = Object.values(githubContributors)
-      .sort((a: any, b: any) => b.numberOfCommits - a.numberOfCommits)
-      .slice(0, 21)
-      .filter((contributor: any) => contributor.id !== "actions-user");
+    const topGithubContributors = await Promise.all(
+      Object.values(githubContributors)
+        .sort((a, b) => b.numberOfCommits - a.numberOfCommits)
+        .slice(0, 21)
+        .filter((contributor) => contributor.id !== "actions-user")
+        .map(async (contributor) => ({
+          ...contributor,
+          name: await this.fetchGithubUsersRealName(contributor.id),
+        }))
+    );
 
     return {
       numberOfRepositories: public_repos,
@@ -195,6 +209,8 @@ export class DashboardAPI {
 
   async getFullData() {
     console.log("Should return full data...");
+
+    // TODO: Fetching engineering data uses 383 API units. Plan this into cron job timing.
     const engineeringData = await this.getEngineeringData();
 
     console.log(engineeringData);
