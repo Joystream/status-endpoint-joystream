@@ -1,14 +1,23 @@
 import assert from "assert";
 import { config } from "dotenv";
 import { Octokit } from "octokit";
+import axios from "axios";
 
 import { getNumberOfGithubItemsFromPageNumbers } from "./utils";
-import { GithubContributor } from "./types";
-import { getDateWeeksAgo, getDateMonthsAgo } from "../utils";
+import {
+  GithubContributor,
+  SubscanBlockchainMetadata,
+  SubscanDailyActiveAccountData,
+} from "./types";
+import { getDateWeeksAgo, getDateMonthsAgo, getYearMonthDayString } from "../utils";
 
 config();
 
 assert(process.env.GITHUB_AUTH_TOKEN, "Missing environment variable: GITHUB_AUTH_TOKEN");
+assert(process.env.SUBSCAN_API_KEY, "Missing environment variable: SUBSCAN_API_KEY");
+
+const GITHUB_AUTH_TOKEN = process.env.GITHUB_AUTH_TOKEN;
+const SUBSCAN_API_KEY = process.env.SUBSCAN_API_KEY;
 
 const GITHUB_JOYSTREAM_ORGANIZATION_NAME = "joystream";
 
@@ -16,7 +25,36 @@ export class DashboardAPI {
   githubAPI: Octokit;
 
   constructor() {
-    this.githubAPI = new Octokit({ auth: process.env.GITHUB_AUTH_TOKEN });
+    this.githubAPI = new Octokit({ auth: GITHUB_AUTH_TOKEN });
+  }
+
+  async fetchSubscanData<T>(url: string, data?: any) {
+    try {
+      console.log({
+        method: "POST",
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": SUBSCAN_API_KEY,
+        },
+        data,
+      });
+
+      const response = axios({
+        method: "POST",
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": SUBSCAN_API_KEY,
+        },
+        data,
+      });
+
+      return (await response).data.data as T;
+    } catch (e) {
+      console.log(e);
+      return null;
+    }
   }
 
   async fetchAllRepoCommits(repoName: string, since: string) {
@@ -103,6 +141,46 @@ export class DashboardAPI {
     });
 
     return name;
+  }
+
+  async getTractionData() {
+    let averageBlockTime = null;
+    let numberOfDailyActiveAccounts = null;
+    let numberOfDailyActiveAccountsWeeklyChange = null;
+
+    const blockchainMetadata = await this.fetchSubscanData<SubscanBlockchainMetadata>(
+      "https://joystream.api.subscan.io/api/scan/metadata"
+    );
+
+    if (blockchainMetadata) {
+      averageBlockTime = blockchainMetadata.avgBlockTime;
+    }
+
+    const dailyActiveAccountData = await this.fetchSubscanData<SubscanDailyActiveAccountData>(
+      "https://joystream.api.subscan.io/api/scan/daily",
+      {
+        category: "ActiveAccount",
+        start: getYearMonthDayString(getDateWeeksAgo(1)),
+        format: "day",
+        end: getYearMonthDayString(new Date()),
+      }
+    );
+
+    if (dailyActiveAccountData) {
+      const numberOfActiveAccountsAWeekAgo = dailyActiveAccountData.list[0].total;
+      numberOfDailyActiveAccounts =
+        dailyActiveAccountData.list[dailyActiveAccountData.list.length - 2].total;
+      numberOfDailyActiveAccountsWeeklyChange =
+        ((numberOfDailyActiveAccounts - numberOfActiveAccountsAWeekAgo) /
+          numberOfActiveAccountsAWeekAgo) *
+        100;
+    }
+
+    return {
+      averageBlockTime,
+      numberOfDailyActiveAccounts,
+      numberOfDailyActiveAccountsWeeklyChange,
+    };
   }
 
   async getEngineeringData() {
@@ -211,8 +289,12 @@ export class DashboardAPI {
     console.log("Should return full data...");
 
     // TODO: Fetching engineering data uses 383 API units. Plan this into cron job timing.
-    const engineeringData = await this.getEngineeringData();
+    // const engineeringData = await this.getEngineeringData();
 
-    console.log(engineeringData);
+    // console.log(engineeringData);
+
+    const tractionData = await this.getTractionData();
+
+    console.log(tractionData);
   }
 }

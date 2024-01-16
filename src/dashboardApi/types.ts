@@ -5,3 +5,13 @@ export type GithubContributor = {
   id: string;
   avatar: string | undefined;
 };
+
+export type SubscanBlockchainMetadata = {
+  avgBlockTime: string;
+};
+
+export type SubscanDailyActiveAccountData = {
+  list: Array<{
+    total: number;
+  }>;
+};

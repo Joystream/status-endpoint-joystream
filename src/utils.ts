@@ -20,3 +20,12 @@ export const getDateMonthsAgo = (months: number) => {
   date.setMonth(date.getMonth() - months);
   return date;
 };
+
+export const getYearMonthDayString = (date: Date) => {
+  return date.toISOString().split("T")[0];
+};
+
+export const getYearMonthDay = (date: Date) => {
+  const [year, month, day] = getYearMonthDayString(date).split("-");
+  return { year, month, day };
+};
