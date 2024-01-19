@@ -4,11 +4,7 @@ import { Octokit } from "octokit";
 import axios from "axios";
 
 import { getNumberOfGithubItemsFromPageNumbers } from "./utils";
-import {
-  GithubContributor,
-  SubscanBlockchainMetadata,
-  SubscanDailyActiveAccountData,
-} from "./types";
+import { GithubContributor, SubscanBlockchainMetadata, GeneralSubscanDailyListData } from "./types";
 import { getDateWeeksAgo, getDateMonthsAgo, getYearMonthDayString } from "../utils";
 
 config();
@@ -30,16 +26,6 @@ export class DashboardAPI {
 
   async fetchSubscanData<T>(url: string, data?: any) {
     try {
-      console.log({
-        method: "POST",
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": SUBSCAN_API_KEY,
-        },
-        data,
-      });
-
       const response = axios({
         method: "POST",
         url,
@@ -145,6 +131,10 @@ export class DashboardAPI {
 
   async getTractionData() {
     let averageBlockTime = null;
+    let totalNumberOfTransactions = null;
+    let totalNumberOfTransactionsWeeklyChange = null;
+    let totalNumberOfAccountHolders = null;
+    let totalNumberOfAccountHoldersWeeklyChange = null;
     let numberOfDailyActiveAccounts = null;
     let numberOfDailyActiveAccountsWeeklyChange = null;
 
@@ -156,7 +146,53 @@ export class DashboardAPI {
       averageBlockTime = blockchainMetadata.avgBlockTime;
     }
 
-    const dailyActiveAccountData = await this.fetchSubscanData<SubscanDailyActiveAccountData>(
+    const extrinsicData = await this.fetchSubscanData<GeneralSubscanDailyListData>(
+      "https://joystream.api.subscan.io/api/scan/daily",
+      {
+        category: "extrinsic",
+        start: "2022-12-01",
+        format: "day",
+        end: getYearMonthDayString(new Date()),
+      }
+    );
+
+    if (extrinsicData) {
+      const totalNumberOfTransactionsAWeekAgo = extrinsicData.list
+        .slice(0, extrinsicData.list.length - 7)
+        .reduce((acc: number, curr: any) => acc + curr.total, 0);
+
+      totalNumberOfTransactions = extrinsicData.list.reduce(
+        (acc: number, curr: any) => acc + curr.total,
+        0
+      );
+      totalNumberOfTransactionsWeeklyChange =
+        ((totalNumberOfTransactions - totalNumberOfTransactionsAWeekAgo) /
+          totalNumberOfTransactionsAWeekAgo) *
+        100;
+    }
+
+    const dailyAccountHolderData = await this.fetchSubscanData<GeneralSubscanDailyListData>(
+      "https://joystream.api.subscan.io/api/scan/daily",
+      {
+        category: "AccountHolderTotal",
+        start: getYearMonthDayString(getDateWeeksAgo(1)),
+        format: "day",
+        end: getYearMonthDayString(new Date()),
+      }
+    );
+
+    if (dailyAccountHolderData) {
+      const numberOfAccountHoldersAWeekAgo = dailyAccountHolderData.list[0].total;
+
+      totalNumberOfAccountHolders =
+        dailyAccountHolderData.list[dailyAccountHolderData.list.length - 1].total;
+      totalNumberOfAccountHoldersWeeklyChange =
+        ((totalNumberOfAccountHolders - numberOfAccountHoldersAWeekAgo) /
+          numberOfAccountHoldersAWeekAgo) *
+        100;
+    }
+
+    const dailyActiveAccountData = await this.fetchSubscanData<GeneralSubscanDailyListData>(
       "https://joystream.api.subscan.io/api/scan/daily",
       {
         category: "ActiveAccount",
@@ -168,6 +204,9 @@ export class DashboardAPI {
 
     if (dailyActiveAccountData) {
       const numberOfActiveAccountsAWeekAgo = dailyActiveAccountData.list[0].total;
+
+      // This takes the number of active accounts from yesterday, as the data for today is not yet fully complete.
+      // During the early parts of the day, the number of active accounts "Today" will be super low and not representative.
       numberOfDailyActiveAccounts =
         dailyActiveAccountData.list[dailyActiveAccountData.list.length - 2].total;
       numberOfDailyActiveAccountsWeeklyChange =
@@ -178,6 +217,10 @@ export class DashboardAPI {
 
     return {
       averageBlockTime,
+      totalNumberOfTransactions,
+      totalNumberOfTransactionsWeeklyChange,
+      totalNumberOfAccountHolders,
+      totalNumberOfAccountHoldersWeeklyChange,
       numberOfDailyActiveAccounts,
       numberOfDailyActiveAccountsWeeklyChange,
     };

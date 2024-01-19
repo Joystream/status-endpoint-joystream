@@ -10,7 +10,7 @@ export type SubscanBlockchainMetadata = {
   avgBlockTime: string;
 };
 
-export type SubscanDailyActiveAccountData = {
+export type GeneralSubscanDailyListData = {
   list: Array<{
     total: number;
   }>;
