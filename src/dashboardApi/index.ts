@@ -3,8 +3,28 @@ import { config } from "dotenv";
 import { Octokit } from "octokit";
 import axios from "axios";
 
-import { getNumberOfGithubItemsFromPageNumbers } from "./utils";
-import { GithubContributor, SubscanBlockchainMetadata, GeneralSubscanDailyListData } from "./types";
+import { JoyApi } from "../joyApi";
+
+import {
+  getNumberOfGithubItemsFromPageNumbers,
+  getNumberOfQNItemsInLastWeek,
+  getTotalPriceOfQNItemsInLastWeek,
+  hapiToJoy,
+  paginatedQNFetch,
+  separateQNDataByWeek,
+  separateQNDataByWeekAndAmount,
+} from "./utils";
+import {
+  GithubContributor,
+  SubscanBlockchainMetadata,
+  GeneralSubscanDailyListData,
+  GenericQNTractionItem,
+  ChannelsQueryData,
+  VideosConnectionData,
+  CommentsAndReactionsData,
+  NFTBoughtEventsData,
+} from "./types";
+import { TRACTION_QN_QUERIES } from "./queries";
 import { getDateWeeksAgo, getDateMonthsAgo, getYearMonthDayString } from "../utils";
 
 config();
@@ -19,9 +39,11 @@ const GITHUB_JOYSTREAM_ORGANIZATION_NAME = "joystream";
 
 export class DashboardAPI {
   githubAPI: Octokit;
+  joyAPI: JoyApi;
 
   constructor() {
     this.githubAPI = new Octokit({ auth: GITHUB_AUTH_TOKEN });
+    this.joyAPI = new JoyApi("wss://rpc.joyutils.org");
   }
 
   async fetchSubscanData<T>(url: string, data?: any) {
@@ -130,6 +152,110 @@ export class DashboardAPI {
   }
 
   async getTractionData() {
+    // ===============
+    // QUERY NODE DATA
+    // ===============
+    let totalNumberOfChannels = null;
+    let totalNumberOfChannelsWeeklyChange = null;
+    let weeklyChannelData = null;
+    let totalNumberOfVideos = null;
+    let totalNumberOfVideosWeeklyChange = null;
+    let weeklyVideoData = null;
+    let totalNumberOfCommentsAndReactions = null;
+    let totalNumberOfCommentsAndReactionsWeeklyChange = null;
+    let weeklyCommentsAndReactionsData = null;
+    let totalVolumeOfSoldNFTs = null;
+    let totalVolumeOfSoldNFTsWeeklyChange = null;
+    let weeklyVolumeOfSoldNFTs = null;
+
+    const [
+      channelsData,
+      videosCountData,
+      videosData,
+      commentsAndReactionsData,
+      nftBoughtEventsData,
+    ] = await Promise.all([
+      this.joyAPI.qnQuery<ChannelsQueryData>(TRACTION_QN_QUERIES.CHANNELS),
+      this.joyAPI.qnQuery<VideosConnectionData>(TRACTION_QN_QUERIES.VIDEOS_CONNECTION),
+      paginatedQNFetch<GenericQNTractionItem>(TRACTION_QN_QUERIES.VIDEOS),
+      this.joyAPI.qnQuery<CommentsAndReactionsData>(TRACTION_QN_QUERIES.COMMENTS_AND_REACTIONS),
+      this.joyAPI.qnQuery<NFTBoughtEventsData>(TRACTION_QN_QUERIES.NFT_BOUGHT_EVENTS),
+    ]);
+
+    if (channelsData) {
+      const {
+        channelsConnection: { totalCount },
+        channels,
+      } = channelsData;
+
+      const numberOfChannelsAWeekAgo = totalCount - getNumberOfQNItemsInLastWeek(channels);
+
+      totalNumberOfChannels = totalCount;
+      totalNumberOfChannelsWeeklyChange =
+        ((totalNumberOfChannels - numberOfChannelsAWeekAgo) / numberOfChannelsAWeekAgo) * 100;
+      weeklyChannelData = separateQNDataByWeek(channels);
+    }
+
+    if (videosCountData && videosData) {
+      const {
+        videosConnection: { totalCount },
+      } = videosCountData;
+
+      const numberOfVideosAWeekAgo = totalCount - getNumberOfQNItemsInLastWeek(videosData);
+
+      totalNumberOfVideos = videosCountData.videosConnection.totalCount;
+      totalNumberOfVideosWeeklyChange =
+        ((totalNumberOfVideos - numberOfVideosAWeekAgo) / numberOfVideosAWeekAgo) * 100;
+      weeklyVideoData = separateQNDataByWeek(videosData);
+    }
+
+    if (commentsAndReactionsData) {
+      const {
+        commentsConnection: { totalCount: allTimeNumberOfComments },
+        commentReactionsConnection: { totalCount: allTimeNumberOfCommentReactions },
+        videoReactionsConnection: { totalCount: allTimeNumberOfVideoReactions },
+        comments,
+        commentReactions,
+        videoReactions,
+      } = commentsAndReactionsData;
+
+      totalNumberOfCommentsAndReactions =
+        allTimeNumberOfComments + allTimeNumberOfCommentReactions + allTimeNumberOfVideoReactions;
+
+      const numberOfCommentsAndReactionsAWeekAgo =
+        totalNumberOfCommentsAndReactions -
+        getNumberOfQNItemsInLastWeek([...comments, ...commentReactions, ...videoReactions]);
+
+      totalNumberOfCommentsAndReactionsWeeklyChange =
+        ((totalNumberOfCommentsAndReactions - numberOfCommentsAndReactionsAWeekAgo) /
+          numberOfCommentsAndReactionsAWeekAgo) *
+        100;
+      weeklyCommentsAndReactionsData = separateQNDataByWeek(
+        [...comments, ...commentReactions, ...videoReactions].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        )
+      );
+    }
+
+    if (nftBoughtEventsData) {
+      const { nftBoughtEvents } = nftBoughtEventsData;
+
+      totalVolumeOfSoldNFTs = hapiToJoy(
+        nftBoughtEvents.reduce((acc: number, curr: any) => acc + Number(curr.price), 0)
+      );
+
+      const totalVolumeOfSoldNFTsAWeekAgo =
+        totalVolumeOfSoldNFTs - getTotalPriceOfQNItemsInLastWeek(nftBoughtEvents);
+
+      totalVolumeOfSoldNFTsWeeklyChange =
+        ((totalVolumeOfSoldNFTs - totalVolumeOfSoldNFTsAWeekAgo) / totalVolumeOfSoldNFTsAWeekAgo) *
+        100;
+      weeklyVolumeOfSoldNFTs = separateQNDataByWeekAndAmount(nftBoughtEvents);
+    }
+
+    // ============
+    // SUBSCAN DATA
+    // ============
     let averageBlockTime = null;
     let totalNumberOfTransactions = null;
     let totalNumberOfTransactionsWeeklyChange = null;
@@ -216,6 +342,18 @@ export class DashboardAPI {
     }
 
     return {
+      totalNumberOfChannels,
+      totalNumberOfChannelsWeeklyChange,
+      weeklyChannelData,
+      totalNumberOfVideos,
+      totalNumberOfVideosWeeklyChange,
+      weeklyVideoData,
+      totalNumberOfCommentsAndReactions,
+      totalNumberOfCommentsAndReactionsWeeklyChange,
+      weeklyCommentsAndReactionsData,
+      totalVolumeOfSoldNFTs,
+      totalVolumeOfSoldNFTsWeeklyChange,
+      weeklyVolumeOfSoldNFTs,
       averageBlockTime,
       totalNumberOfTransactions,
       totalNumberOfTransactionsWeeklyChange,
