@@ -26,6 +26,7 @@ import {
   TeamWorkingGroupQNData,
   TeamCouncilQNData,
   TeamWorkingGroupResult,
+  TeamCouncilResult,
 } from "./types";
 import { TEAM_QN_QUERIES, TRACTION_QN_QUERIES } from "./queries";
 import { getDateWeeksAgo, getDateMonthsAgo, getYearMonthDayString } from "../utils";
@@ -39,6 +40,7 @@ const GITHUB_AUTH_TOKEN = process.env.GITHUB_AUTH_TOKEN;
 const SUBSCAN_API_KEY = process.env.SUBSCAN_API_KEY;
 
 const GITHUB_JOYSTREAM_ORGANIZATION_NAME = "joystream";
+const BLOCKS_IN_A_WEEK = 10 * 60 * 24 * 7;
 
 export class DashboardAPI {
   githubAPI: Octokit;
@@ -46,7 +48,7 @@ export class DashboardAPI {
 
   constructor() {
     this.githubAPI = new Octokit({ auth: GITHUB_AUTH_TOKEN });
-    this.joyAPI = new JoyApi("wss://rpc.joyutils.org");
+    this.joyAPI = new JoyApi();
   }
 
   async fetchSubscanData<T>(url: string, data?: any) {
@@ -369,9 +371,54 @@ export class DashboardAPI {
 
   async getTeamData() {
     let workingGroups: TeamWorkingGroupResult = {};
+    let councilMembers: TeamCouncilResult = [];
+    let currentCouncilTerm = null;
+    let councilTermLengthInDays = null;
+    let startOfCouncilElectionRound = null;
+    let endOfCouncilElectionRound = null;
+    let weeklyCouncilorSalaryInJOY = null;
 
-    // const councilData = await this.joyAPI.qnQuery<TeamCouncilQNData>(TEAM_QN_QUERIES.COUNCIL);
-    const workersData = await this.joyAPI.qnQuery<TeamWorkingGroupQNData>(TEAM_QN_QUERIES.WORKERS);
+    const [
+      idlePeriodDuration,
+      councilorReward,
+      voteStageDuration,
+      revealStageDuration,
+      announcingPeriodDuration,
+      councilData,
+      workersData,
+    ] = await Promise.all([
+      this.joyAPI.api.consts.council.idlePeriodDuration.toNumber(),
+      (await this.joyAPI.api.query.council.councilorReward()).toNumber(),
+      this.joyAPI.api.consts.referendum.voteStageDuration.toNumber(),
+      this.joyAPI.api.consts.referendum.revealStageDuration.toNumber(),
+      this.joyAPI.api.consts.council.announcingPeriodDuration.toNumber(),
+      this.joyAPI.qnQuery<TeamCouncilQNData>(TEAM_QN_QUERIES.COUNCIL),
+      this.joyAPI.qnQuery<TeamWorkingGroupQNData>(TEAM_QN_QUERIES.WORKERS),
+    ]);
+
+    if (councilData) {
+      const combinedLengthOfCouncilStages =
+        idlePeriodDuration + voteStageDuration + revealStageDuration + announcingPeriodDuration;
+      const approximatedLengthInSeconds = combinedLengthOfCouncilStages * 6;
+      const startOfElectionRound = new Date(councilData.electionRounds[1].endedAtTime);
+      const endOfElectionRound = new Date(councilData.electionRounds[1].endedAtTime);
+      endOfElectionRound.setSeconds(
+        startOfElectionRound.getSeconds() + approximatedLengthInSeconds
+      );
+
+      currentCouncilTerm = councilData.electionRounds[1].cycleId;
+      councilTermLengthInDays = Math.round(approximatedLengthInSeconds / (60 * 60 * 24));
+      startOfCouncilElectionRound = startOfElectionRound.toISOString();
+      endOfCouncilElectionRound = endOfElectionRound.toISOString();
+      weeklyCouncilorSalaryInJOY = hapiToJoy(councilorReward * BLOCKS_IN_A_WEEK);
+
+      councilMembers = councilData.councilMembers.map(({ member }) => ({
+        avatar: member.metadata.avatar?.avatarUri,
+        handle: member.handle,
+        socials: member.metadata.externalResources,
+        timesServed: member.councilMembers.length,
+      }));
+    }
 
     if (workersData) {
       workingGroups = workersData.workingGroups.reduce((acc, wg) => {
@@ -390,7 +437,17 @@ export class DashboardAPI {
       }, {} as TeamWorkingGroupResult);
     }
 
-    console.log(JSON.stringify(workingGroups, null, 2));
+    return {
+      council: {
+        currentTerm: currentCouncilTerm,
+        termLength: councilTermLengthInDays,
+        electedOnDate: startOfCouncilElectionRound,
+        nextElectionDate: endOfCouncilElectionRound,
+        weeklySalaryInJOY: weeklyCouncilorSalaryInJOY,
+        currentCouncil: councilMembers,
+      },
+      workingGroups,
+    };
   }
 
   async getEngineeringData() {
@@ -496,6 +553,8 @@ export class DashboardAPI {
   }
 
   async getFullData() {
+    await this.joyAPI.init;
+
     // TODO: Fetching engineering data uses 383 API units. Plan this into cron job timing.
     // const engineeringData = await this.getEngineeringData();
 
@@ -507,6 +566,6 @@ export class DashboardAPI {
 
     const teamData = await this.getTeamData();
 
-    // console.log(teamData);
+    console.log(JSON.stringify(teamData, null, 2));
   }
 }

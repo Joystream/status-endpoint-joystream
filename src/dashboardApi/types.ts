@@ -58,10 +58,13 @@ export type Avatar = {
 } | null;
 
 export type TeamCouncilQNData = {
-  electionRounds: Array<{
-    cycleId: number;
-    endedAtTime: string | null;
-  }>;
+  electionRounds: [
+    null,
+    {
+      cycleId: number;
+      endedAtTime: string;
+    }
+  ];
   councilMembers: Array<{
     member: {
       handle: string;
@@ -100,3 +103,13 @@ export type TeamWorkingGroupResult = {
     budget: number;
   };
 };
+
+export type TeamCouncilResult = Array<{
+  avatar?: string;
+  handle: string;
+  socials: Array<{
+    type: string;
+    value: string;
+  }>;
+  timesServed: number;
+}>;
