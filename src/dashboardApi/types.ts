@@ -52,3 +52,51 @@ export type NFTBoughtEventsData = {
     createdAt: string;
   }>;
 };
+
+export type Avatar = {
+  avatarUri: string;
+} | null;
+
+export type TeamCouncilQNData = {
+  electionRounds: Array<{
+    cycleId: number;
+    endedAtTime: string | null;
+  }>;
+  councilMembers: Array<{
+    member: {
+      handle: string;
+      metadata: {
+        avatar: Avatar;
+        externalResources: Array<{
+          type: string;
+          value: string;
+        }>;
+      };
+      councilMembers: Array<{ id: string }>;
+    };
+  }>;
+};
+
+export type TeamWorkingGroupQNData = {
+  workingGroups: Array<{
+    id: string;
+    budget: string;
+    workers: Array<{
+      isActive: boolean;
+      isLead: boolean;
+      membership: {
+        handle: string;
+        metadata: {
+          avatar: Avatar;
+        };
+      };
+    }>;
+  }>;
+};
+
+export type TeamWorkingGroupResult = {
+  [key: string]: {
+    workers: Array<{ handle: string; isLead: boolean; avatar?: string }>;
+    budget: number;
+  };
+};

@@ -23,8 +23,11 @@ import {
   VideosConnectionData,
   CommentsAndReactionsData,
   NFTBoughtEventsData,
+  TeamWorkingGroupQNData,
+  TeamCouncilQNData,
+  TeamWorkingGroupResult,
 } from "./types";
-import { TRACTION_QN_QUERIES } from "./queries";
+import { TEAM_QN_QUERIES, TRACTION_QN_QUERIES } from "./queries";
 import { getDateWeeksAgo, getDateMonthsAgo, getYearMonthDayString } from "../utils";
 
 config();
@@ -364,6 +367,32 @@ export class DashboardAPI {
     };
   }
 
+  async getTeamData() {
+    let workingGroups: TeamWorkingGroupResult = {};
+
+    // const councilData = await this.joyAPI.qnQuery<TeamCouncilQNData>(TEAM_QN_QUERIES.COUNCIL);
+    const workersData = await this.joyAPI.qnQuery<TeamWorkingGroupQNData>(TEAM_QN_QUERIES.WORKERS);
+
+    if (workersData) {
+      workingGroups = workersData.workingGroups.reduce((acc, wg) => {
+        acc[wg.id] = {
+          workers: wg.workers
+            .filter((w: any) => w.isActive)
+            .map((w: any) => ({
+              handle: w.membership.handle,
+              isLead: w.isLead,
+              avatar: w.membership.metadata.avatar?.avatarUri,
+            })),
+          budget: hapiToJoy(Number(wg.budget)),
+        };
+
+        return acc;
+      }, {} as TeamWorkingGroupResult);
+    }
+
+    console.log(JSON.stringify(workingGroups, null, 2));
+  }
+
   async getEngineeringData() {
     let totalNumberOfStars = 0;
     let totalNumberOfCommits = 0;
@@ -467,15 +496,17 @@ export class DashboardAPI {
   }
 
   async getFullData() {
-    console.log("Should return full data...");
-
     // TODO: Fetching engineering data uses 383 API units. Plan this into cron job timing.
     // const engineeringData = await this.getEngineeringData();
 
     // console.log(engineeringData);
 
-    const tractionData = await this.getTractionData();
+    // const tractionData = await this.getTractionData();
 
-    console.log(tractionData);
+    // console.log(tractionData);
+
+    const teamData = await this.getTeamData();
+
+    // console.log(teamData);
   }
 }

@@ -57,3 +57,51 @@ export const TRACTION_QN_QUERIES = {
     }
   }`,
 };
+
+export const TEAM_QN_QUERIES = {
+  COUNCIL: `{
+    electionRounds(limit: 2, orderBy: cycleId_DESC) {
+      cycleId
+      endedAtTime
+    }
+    councilMembers(limit: 3, orderBy: updatedAt_DESC) {
+      member {
+        handle
+        metadata {
+          avatar {
+            ...on AvatarUri {
+              avatarUri
+            }
+          }
+          externalResources {
+            type
+            value
+          }
+        }
+        councilMembers {
+          id
+        }
+      }
+    }
+  }`,
+  WORKERS: `{
+    workingGroups {
+      id
+      budget
+      workers {
+        isActive
+        isLead
+        membership {
+          handle
+          metadata {
+            avatar {
+              ...on AvatarUri {
+                avatarUri
+              }
+            }
+          }
+        }
+      }
+    }
+  }`,
+};
