@@ -113,3 +113,36 @@ export type TeamCouncilResult = Array<{
   }>;
   timesServed: number;
 }>;
+
+export type TweetScoutScoreData = {
+  score: number;
+};
+
+export type TweetScoutGeneralData = {
+  followers_count: number;
+};
+
+export type TweetScoutTopFollowers = Array<{
+  avatar: string;
+  name: string;
+  screenName: string;
+  followersCount: number;
+}>;
+
+export type TelegramAPIResult = {
+  ok: boolean;
+  result: number;
+};
+
+export type DiscordEvent = {
+  name: string;
+  scheduled_start_time: string;
+  description: string;
+};
+
+export type DiscordUser = {
+  joined_at: string;
+  user: {
+    id: string;
+  };
+};

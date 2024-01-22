@@ -149,3 +149,35 @@ export const getTotalPriceOfQNItemsInLastWeek = (data: { createdAt: string; pric
     return acc;
   }, 0);
 };
+
+export const fetchGenericAPIData = async <T>({
+  url,
+  headers,
+}: {
+  url: string;
+  headers?: { [key: string]: string };
+}) => {
+  try {
+    const { data } = await axios.get(url, {
+      headers,
+    });
+    return data as T;
+  } catch (e) {
+    console.log(e);
+    return null;
+  }
+};
+
+export const getTweetscoutLevel = (tweetscoutScore: number) => {
+  if (tweetscoutScore < 100) {
+    return 1;
+  } else if (tweetscoutScore < 500) {
+    return 2;
+  } else if (tweetscoutScore < 1000) {
+    return 3;
+  } else if (tweetscoutScore < 2000) {
+    return 4;
+  }
+
+  return 5;
+};

@@ -2,13 +2,16 @@ import assert from "assert";
 import { config } from "dotenv";
 import { Octokit } from "octokit";
 import axios from "axios";
+import { REST, Routes, GuildScheduledEvent, User, GuildMember } from "discord.js";
 
 import { JoyApi } from "../joyApi";
 
 import {
+  fetchGenericAPIData,
   getNumberOfGithubItemsFromPageNumbers,
   getNumberOfQNItemsInLastWeek,
   getTotalPriceOfQNItemsInLastWeek,
+  getTweetscoutLevel,
   hapiToJoy,
   paginatedQNFetch,
   separateQNDataByWeek,
@@ -27,6 +30,12 @@ import {
   TeamCouncilQNData,
   TeamWorkingGroupResult,
   TeamCouncilResult,
+  TweetScoutScoreData,
+  TweetScoutGeneralData,
+  TweetScoutTopFollowers,
+  TelegramAPIResult,
+  DiscordUser,
+  DiscordEvent,
 } from "./types";
 import { TEAM_QN_QUERIES, TRACTION_QN_QUERIES } from "./queries";
 import { getDateWeeksAgo, getDateMonthsAgo, getYearMonthDayString } from "../utils";
@@ -35,9 +44,20 @@ config();
 
 assert(process.env.GITHUB_AUTH_TOKEN, "Missing environment variable: GITHUB_AUTH_TOKEN");
 assert(process.env.SUBSCAN_API_KEY, "Missing environment variable: SUBSCAN_API_KEY");
+assert(process.env.TWEETSCOUT_API_KEY, "Missing environment variable: TWEETSCOUT_API_KEY");
+assert(process.env.TELEGRAM_BOT_ID, "Missing environment variable: TELEGRAM_BOT_ID");
+assert(process.env.DISCORD_BOT_TOKEN, "Missing environment variable: DISCORD_BOT_TOKEN");
+assert(
+  process.env.DISCORD_SERVER_GUILD_ID,
+  "Missing environment variable: DISCORD_SERVER_GUILD_ID"
+);
 
 const GITHUB_AUTH_TOKEN = process.env.GITHUB_AUTH_TOKEN;
 const SUBSCAN_API_KEY = process.env.SUBSCAN_API_KEY;
+const TWEETSCOUT_API_KEY = process.env.TWEETSCOUT_API_KEY;
+const TELEGRAM_BOT_ID = process.env.TELEGRAM_BOT_ID;
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+const DISCORD_SERVER_GUILD_ID = process.env.DISCORD_SERVER_GUILD_ID;
 
 const GITHUB_JOYSTREAM_ORGANIZATION_NAME = "joystream";
 const BLOCKS_IN_A_WEEK = 10 * 60 * 24 * 7;
@@ -45,10 +65,12 @@ const BLOCKS_IN_A_WEEK = 10 * 60 * 24 * 7;
 export class DashboardAPI {
   githubAPI: Octokit;
   joyAPI: JoyApi;
+  discordAPI: REST;
 
   constructor() {
     this.githubAPI = new Octokit({ auth: GITHUB_AUTH_TOKEN });
-    this.joyAPI = new JoyApi();
+    this.joyAPI = new JoyApi("wss://rpc.joyutils.org");
+    this.discordAPI = new REST({ version: "10" }).setToken(DISCORD_BOT_TOKEN);
   }
 
   async fetchSubscanData<T>(url: string, data?: any) {
@@ -369,6 +391,137 @@ export class DashboardAPI {
     };
   }
 
+  async fetchDiscordUsers() {
+    let after = "0";
+    let usersResult: DiscordUser[] = [];
+
+    while (true) {
+      const users = (await this.discordAPI.get(Routes.guildMembers(DISCORD_SERVER_GUILD_ID), {
+        query: new URLSearchParams([
+          ["limit", "1000"],
+          ["after", after],
+        ]),
+      })) as DiscordUser[];
+
+      usersResult = [...usersResult, ...users];
+
+      if (users.length === 0) {
+        break;
+      }
+
+      after = users[users.length - 1].user.id;
+    }
+
+    return usersResult;
+  }
+
+  async getCommunityData() {
+    let twitterFollowerCount = null;
+    let discordMemberCount = null;
+    let discordMemberCountMonthlyChange = null;
+    let telegramMemberCount = null;
+    let tweetscoutScore = null;
+    let tweetscoutLevel = null;
+    let featuredFollowers: TweetScoutTopFollowers = [];
+    // TODO: Finish implementing events.
+    let discordEvents: any[] = [];
+
+    // Use this to fetch event location.
+    // console.log(await this.discordAPI.get(Routes.channel("975426906826604544")));
+
+    const [
+      tweetScoutScoreData,
+      joystreamDAOInfo,
+      topFollowers,
+      telegramMemberCountResult,
+      events,
+      discordUsers,
+    ] = await Promise.all([
+      fetchGenericAPIData<TweetScoutScoreData>({
+        url: "https://api.tweetscout.io/api/score/joystreamdao",
+        headers: {
+          ApiKey: TWEETSCOUT_API_KEY,
+        },
+      }),
+      fetchGenericAPIData<TweetScoutGeneralData>({
+        url: "https://api.tweetscout.io/api/info/joystreamdao",
+        headers: {
+          ApiKey: TWEETSCOUT_API_KEY,
+        },
+      }),
+      fetchGenericAPIData<TweetScoutTopFollowers>({
+        url: "https://api.tweetscout.io/api/top-followers/joystreamdao",
+        headers: {
+          ApiKey: TWEETSCOUT_API_KEY,
+        },
+      }),
+      fetchGenericAPIData<TelegramAPIResult>({
+        url: `https://api.telegram.org/bot${TELEGRAM_BOT_ID}/getChatMembersCount?chat_id=@JoystreamOfficial`,
+      }),
+      this.discordAPI.get(Routes.guildScheduledEvents(DISCORD_SERVER_GUILD_ID)) as Promise<
+        DiscordEvent[]
+      >,
+      this.fetchDiscordUsers(),
+    ]);
+
+    if (tweetScoutScoreData) {
+      tweetscoutScore = tweetScoutScoreData.score;
+      tweetscoutLevel = getTweetscoutLevel(tweetScoutScoreData.score);
+    }
+
+    if (joystreamDAOInfo) {
+      twitterFollowerCount = joystreamDAOInfo.followers_count;
+    }
+
+    if (topFollowers) {
+      featuredFollowers = topFollowers.map(({ avatar, name, screenName, followersCount }) => ({
+        avatar,
+        name,
+        screenName,
+        followersCount,
+      }));
+    }
+
+    if (telegramMemberCountResult) {
+      telegramMemberCount = telegramMemberCountResult.result;
+    }
+
+    // TODO: Implement events.
+    // if (events.length != 0) {
+    //   discordEvents = events.map((event) => ({
+    //     name: event.name,
+    //     description: event.description,
+    //     time: event.time,
+    //     url: event.url,
+    //   }));
+    //   console.log(JSON.stringify(events, null, 2));
+    // }
+
+    if (discordUsers.length != 0) {
+      const oneMonthAgo = getDateMonthsAgo(1);
+
+      const numberOfUsersJoinedInLastMonth = discordUsers.filter(
+        (user) => new Date(user.joined_at) > oneMonthAgo
+      ).length;
+      const usersLastMonth = discordUsers.length - numberOfUsersJoinedInLastMonth;
+      const percentChange = ((discordUsers.length - usersLastMonth) / usersLastMonth) * 100;
+
+      discordMemberCount = discordUsers.length;
+      discordMemberCountMonthlyChange = percentChange;
+    }
+
+    return {
+      twitterFollowerCount,
+      discordMemberCount,
+      discordMemberCountMonthlyChange,
+      telegramMemberCount,
+      tweetscoutScore,
+      tweetscoutLevel,
+      featuredFollowers,
+      discordEvents,
+    };
+  }
+
   async getTeamData() {
     let workingGroups: TeamWorkingGroupResult = {};
     let councilMembers: TeamCouncilResult = [];
@@ -553,7 +706,7 @@ export class DashboardAPI {
   }
 
   async getFullData() {
-    await this.joyAPI.init;
+    // await this.joyAPI.init;
 
     // TODO: Fetching engineering data uses 383 API units. Plan this into cron job timing.
     // const engineeringData = await this.getEngineeringData();
@@ -562,10 +715,12 @@ export class DashboardAPI {
 
     // const tractionData = await this.getTractionData();
 
-    // console.log(tractionData);
+    // console.log(tractionData);s
 
-    const teamData = await this.getTeamData();
+    await this.getCommunityData();
 
-    console.log(JSON.stringify(teamData, null, 2));
+    // const teamData = await this.getTeamData();
+
+    // console.log(JSON.stringify(teamData, null, 2));
   }
 }
