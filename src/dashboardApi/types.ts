@@ -164,3 +164,10 @@ export type DiscordUser = {
     id: string;
   };
 };
+
+export type SubscanPriceHistoryListData = {
+  list: Array<{
+    feed_at: number;
+    price: string;
+  }>;
+};

@@ -46,9 +46,17 @@ import {
   DiscordAPIEvent,
   DiscordEvent,
   TweetScoutAPITopFollowers,
+  SubscanPriceHistoryListData,
 } from "./types";
 import { TEAM_QN_QUERIES, TRACTION_QN_QUERIES } from "./queries";
-import { getDateWeeksAgo, getDateMonthsAgo, getYearMonthDayString } from "../utils";
+import {
+  getDateWeeksAgo,
+  getDateMonthsAgo,
+  getYearMonthDayString,
+  getTomorrowsDate,
+  getUnixTimestampFromDate,
+  getDateDaysAgo,
+} from "../utils";
 
 config();
 
@@ -61,6 +69,7 @@ assert(
   process.env.DISCORD_SERVER_GUILD_ID,
   "Missing environment variable: DISCORD_SERVER_GUILD_ID"
 );
+assert(process.env.COINGECKO_API_KEY, "Missing environment variable: COINGECKO_API_KEY");
 
 const GITHUB_AUTH_TOKEN = process.env.GITHUB_AUTH_TOKEN;
 const SUBSCAN_API_KEY = process.env.SUBSCAN_API_KEY;
@@ -68,6 +77,7 @@ const TWEETSCOUT_API_KEY = process.env.TWEETSCOUT_API_KEY;
 const TELEGRAM_BOT_ID = process.env.TELEGRAM_BOT_ID;
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_SERVER_GUILD_ID = process.env.DISCORD_SERVER_GUILD_ID;
+const COINGECKO_API_KEY = process.env.COINGECKO_API_KEY;
 
 const GITHUB_JOYSTREAM_ORGANIZATION_NAME = "joystream";
 const BLOCKS_IN_A_WEEK = 10 * 60 * 24 * 7;
@@ -186,6 +196,52 @@ export class DashboardAPI {
     });
 
     return name;
+  }
+
+  async getTokenData() {
+    let price = null;
+    let priceWeeklyChange = null;
+
+    const [priceHistory, longTermTokenData, shortTermTokenData] = await Promise.all([
+      this.fetchSubscanData<SubscanPriceHistoryListData>(
+        "https://joystream.api.subscan.io/api/scan/price/history",
+        {
+          currency: "string",
+          start: getYearMonthDayString(getDateMonthsAgo(6)),
+          format: "hour",
+          end: getYearMonthDayString(getTomorrowsDate()),
+        }
+      ),
+      fetchGenericAPIData<any>({
+        url: `https://api.coingecko.com/api/v3/coins/joystream/market_chart/range?vs_currency=usd&from=${getUnixTimestampFromDate(
+          getDateMonthsAgo(6)
+        )}&to=${getUnixTimestampFromDate(new Date())}&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
+      }),
+      fetchGenericAPIData<any>({
+        url: `https://api.coingecko.com/api/v3/coins/joystream/market_chart/range?vs_currency=usd&from=${getUnixTimestampFromDate(
+          getDateDaysAgo(2)
+        )}&to=${getUnixTimestampFromDate(new Date())}&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
+      }),
+    ]);
+
+    if (priceHistory) {
+      const { list: prices } = priceHistory;
+
+      const lastWeekValue = Number(prices[prices.length - 24 * 7].price);
+
+      price = Number(prices[prices.length - 1].price);
+      priceWeeklyChange = ((price - lastWeekValue) / lastWeekValue) * 100;
+    }
+
+    console.log(priceHistory?.list.length);
+
+    // console.log(longTermTokenData.prices[longTermTokenData.prices.length - 1]);
+    console.log(shortTermTokenData);
+
+    return {
+      price,
+      priceWeeklyChange,
+    };
   }
 
   async getTractionData() {
@@ -723,6 +779,9 @@ export class DashboardAPI {
   async getFullData() {
     // await this.joyAPI.init;
     // TODO: Fetching engineering data uses 383 API units. Plan this into cron job timing.
+    const tokenData = await this.getTokenData();
+
+    console.log(tokenData);
     // const engineeringData = await this.getEngineeringData();
     // console.log(engineeringData);
     // const tractionData = await this.getTractionData();

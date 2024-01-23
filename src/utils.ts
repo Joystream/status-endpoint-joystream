@@ -9,6 +9,22 @@ export const calculateSecondsUntilNextInterval = (seconds: number) => {
   return Math.floor((next5MinuteInterval.getTime() - now.getTime()) / 1000);
 };
 
+export const getUnixTimestampFromDate = (date: Date) => {
+  return Math.floor(date.getTime() / 1000);
+};
+
+export const getTomorrowsDate = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return date;
+};
+
+export const getDateDaysAgo = (days: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date;
+};
+
 export const getDateWeeksAgo = (weeks: number) => {
   const date = new Date();
   date.setDate(date.getDate() - weeks * 7);
