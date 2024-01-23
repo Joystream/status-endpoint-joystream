@@ -2,7 +2,15 @@ import assert from "assert";
 import { config } from "dotenv";
 import { Octokit } from "octokit";
 import axios from "axios";
-import { REST, Routes, GuildScheduledEvent, User, GuildMember } from "discord.js";
+import {
+  REST,
+  Routes,
+  GuildScheduledEvent,
+  User,
+  GuildMember,
+  Channel,
+  GuildChannel,
+} from "discord.js";
 
 import { JoyApi } from "../joyApi";
 
@@ -35,7 +43,9 @@ import {
   TweetScoutTopFollowers,
   TelegramAPIResult,
   DiscordUser,
+  DiscordAPIEvent,
   DiscordEvent,
+  TweetScoutAPITopFollowers,
 } from "./types";
 import { TEAM_QN_QUERIES, TRACTION_QN_QUERIES } from "./queries";
 import { getDateWeeksAgo, getDateMonthsAgo, getYearMonthDayString } from "../utils";
@@ -415,6 +425,12 @@ export class DashboardAPI {
     return usersResult;
   }
 
+  async getDiscordEventLocation(channelId: string) {
+    const channel = (await this.discordAPI.get(Routes.channel(channelId))) as GuildChannel;
+
+    return channel.name;
+  }
+
   async getCommunityData() {
     let twitterFollowerCount = null;
     let discordMemberCount = null;
@@ -423,11 +439,7 @@ export class DashboardAPI {
     let tweetscoutScore = null;
     let tweetscoutLevel = null;
     let featuredFollowers: TweetScoutTopFollowers = [];
-    // TODO: Finish implementing events.
-    let discordEvents: any[] = [];
-
-    // Use this to fetch event location.
-    // console.log(await this.discordAPI.get(Routes.channel("975426906826604544")));
+    let discordEvents: DiscordEvent[] = [];
 
     const [
       tweetScoutScoreData,
@@ -449,7 +461,7 @@ export class DashboardAPI {
           ApiKey: TWEETSCOUT_API_KEY,
         },
       }),
-      fetchGenericAPIData<TweetScoutTopFollowers>({
+      fetchGenericAPIData<TweetScoutAPITopFollowers>({
         url: "https://api.tweetscout.io/api/top-followers/joystreamdao",
         headers: {
           ApiKey: TWEETSCOUT_API_KEY,
@@ -459,7 +471,7 @@ export class DashboardAPI {
         url: `https://api.telegram.org/bot${TELEGRAM_BOT_ID}/getChatMembersCount?chat_id=@JoystreamOfficial`,
       }),
       this.discordAPI.get(Routes.guildScheduledEvents(DISCORD_SERVER_GUILD_ID)) as Promise<
-        DiscordEvent[]
+        DiscordAPIEvent[]
       >,
       this.fetchDiscordUsers(),
     ]);
@@ -474,10 +486,10 @@ export class DashboardAPI {
     }
 
     if (topFollowers) {
-      featuredFollowers = topFollowers.map(({ avatar, name, screenName, followersCount }) => ({
+      featuredFollowers = topFollowers.map(({ avatar, name, screeName, followersCount }) => ({
         avatar,
         name,
-        screenName,
+        screenName: screeName,
         followersCount,
       }));
     }
@@ -486,16 +498,19 @@ export class DashboardAPI {
       telegramMemberCount = telegramMemberCountResult.result;
     }
 
-    // TODO: Implement events.
-    // if (events.length != 0) {
-    //   discordEvents = events.map((event) => ({
-    //     name: event.name,
-    //     description: event.description,
-    //     time: event.time,
-    //     url: event.url,
-    //   }));
-    //   console.log(JSON.stringify(events, null, 2));
-    // }
+    if (events.length != 0) {
+      discordEvents = await Promise.all(
+        events.map(async (event) => ({
+          image: event.image
+            ? `https://cdn.discordapp.com/guild-events/${event.id}/${event.image}.png?size=1024`
+            : null,
+          name: event.name,
+          scheduledStartTime: event.scheduled_start_time,
+          description: event.description,
+          location: await this.getDiscordEventLocation(event.channel_id),
+        }))
+      );
+    }
 
     if (discordUsers.length != 0) {
       const oneMonthAgo = getDateMonthsAgo(1);
@@ -707,20 +722,14 @@ export class DashboardAPI {
 
   async getFullData() {
     // await this.joyAPI.init;
-
     // TODO: Fetching engineering data uses 383 API units. Plan this into cron job timing.
     // const engineeringData = await this.getEngineeringData();
-
     // console.log(engineeringData);
-
     // const tractionData = await this.getTractionData();
-
-    // console.log(tractionData);s
-
-    await this.getCommunityData();
-
+    // console.log(tractionData);
+    // const communityData = await this.getCommunityData();
+    // console.log(JSON.stringify(communityData, null, 2));
     // const teamData = await this.getTeamData();
-
     // console.log(JSON.stringify(teamData, null, 2));
   }
 }

@@ -122,6 +122,13 @@ export type TweetScoutGeneralData = {
   followers_count: number;
 };
 
+export type TweetScoutAPITopFollowers = Array<{
+  avatar: string;
+  name: string;
+  screeName: string;
+  followersCount: number;
+}>;
+
 export type TweetScoutTopFollowers = Array<{
   avatar: string;
   name: string;
@@ -134,10 +141,21 @@ export type TelegramAPIResult = {
   result: number;
 };
 
-export type DiscordEvent = {
+export type DiscordAPIEvent = {
+  id: string;
+  channel_id: string;
   name: string;
   scheduled_start_time: string;
   description: string;
+  image: string;
+};
+
+export type DiscordEvent = {
+  image: string | null;
+  name: string;
+  scheduledStartTime: string;
+  description: string;
+  location: string;
 };
 
 export type DiscordUser = {
