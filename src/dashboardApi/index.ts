@@ -47,6 +47,7 @@ import {
   DiscordEvent,
   TweetScoutAPITopFollowers,
   SubscanPriceHistoryListData,
+  SubscanUniqueTokenData,
 } from "./types";
 import { TEAM_QN_QUERIES, TRACTION_QN_QUERIES } from "./queries";
 import {
@@ -118,10 +119,10 @@ export class DashboardAPI {
     this.discordAPI = new REST({ version: "10" }).setToken(DISCORD_BOT_TOKEN);
   }
 
-  async fetchSubscanData<T>(url: string, data?: any) {
+  async fetchSubscanData<T>(url: string, data?: any, method = "POST") {
     try {
       const response = axios({
-        method: "POST",
+        method,
         url,
         headers: {
           "Content-Type": "application/json",
@@ -269,6 +270,8 @@ export class DashboardAPI {
   async getTokenData() {
     let price: number | null = null;
     let priceWeeklyChange = null;
+    let joyAnnualInflation = null;
+    let percentSupplyStakedForValidation = null;
     let roi = null;
     let supplyDistribution = null;
 
@@ -308,7 +311,13 @@ export class DashboardAPI {
       };
     }
 
-    const [dailyLongTermTokenData, circulatingSupply, joystreamAddresses] = await Promise.all([
+    const [
+      dailyLongTermTokenData,
+      circulatingSupply,
+      totalSupply,
+      uniqueTokenData,
+      joystreamAddresses,
+    ] = await Promise.all([
       fetchGenericAPIData<any>({
         url: `https://api.coingecko.com/api/v3/coins/joystream/market_chart/range?vs_currency=usd&from=${getUnixTimestampFromDate(
           getDateMonthsAgo(12)
@@ -317,8 +326,21 @@ export class DashboardAPI {
         )}&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
       }),
       this.joyAPI.calculateCirculatingSupply(),
+      this.joyAPI.totalIssuanceInJOY(),
+      this.fetchSubscanData<SubscanUniqueTokenData>(
+        "https://joystream.api.subscan.io/api/scan/token/unique_id",
+        undefined,
+        "GET"
+      ),
       this.fetchJoystreamAdresses(price ?? 0),
     ]);
+
+    if (uniqueTokenData) {
+      const { inflation, bonded_locked_balance } = uniqueTokenData.detail.JOY;
+
+      joyAnnualInflation = inflation;
+      percentSupplyStakedForValidation = (Number(bonded_locked_balance) / totalSupply) * 100;
+    }
 
     if (joystreamAddresses) {
       const { totalNumberOfAddresses, addresses } = joystreamAddresses;
@@ -391,6 +413,11 @@ export class DashboardAPI {
       price,
       priceWeeklyChange,
       circulatingSupply,
+      fullyDilutedValue: price ? totalSupply * price : null,
+      totalSupply,
+      joyAnnualInflation,
+      percentSupplyStakedForValidation,
+      roi,
       supplyDistribution,
     };
   }

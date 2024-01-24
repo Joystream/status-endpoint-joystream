@@ -171,3 +171,12 @@ export type SubscanPriceHistoryListData = {
     price: string;
   }>;
 };
+
+export type SubscanUniqueTokenData = {
+  detail: {
+    JOY: {
+      inflation: string;
+      bonded_locked_balance: string;
+    };
+  };
+};
