@@ -12,6 +12,7 @@ import {
   PalletVestingVestingInfo,
 } from '@polkadot/types/lookup'
 import { Vec } from '@polkadot/types';
+import { HexString } from '@polkadot/util/types';
 
 // Init .env config
 config();
@@ -541,6 +542,36 @@ export class JoyApi {
     Object.keys(resultData).forEach((address) => { delete (resultData[address] as any).tempAmount2; });
 
     return resultData as { [key: string]: Address };
+  }
+
+  async getValidatorReward(startBlockHash: HexString, endBlockHash: HexString) {
+    let totalReward = 0;
+    const startEra = Number(
+      (await (await this.api.at(startBlockHash)).query.staking.activeEra()).unwrap().index
+    );
+    const endEra = Number(
+      (await (await this.api.at(endBlockHash)).query.staking.activeEra()).unwrap().index
+    );
+    for (let i = startEra; i <= endEra; i++) {
+      const reward = await (await this.api.at(endBlockHash)).query.staking.erasValidatorReward(i);
+
+      if (!reward.isNone) {
+        totalReward += this.toJOY(reward.unwrap());
+      }
+    }
+    return totalReward;
+  }
+
+  async getYearOfValidatorRewards() {
+    const finalizedHeadHash = await this.finalizedHash();
+    const { number: blockNumber } = await this.api.rpc.chain.getHeader(`${finalizedHeadHash}`);
+    const currentBlock = blockNumber.toBn();
+
+    // Calculate block for exactly 1 year ago
+    const startBlockHash = await this.api.rpc.chain.getBlockHash(currentBlock.subn((365 * 24 * 60 * 60) / 6));
+    const endBlockHash = await this.api.rpc.chain.getBlockHash(currentBlock);
+
+    return await this.getValidatorReward(startBlockHash.toHex(), endBlockHash.toHex());
   }
 
   protected async fetchNetworkStatus(): Promise<NetworkStatus> {
