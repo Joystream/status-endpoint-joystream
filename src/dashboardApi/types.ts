@@ -180,3 +180,28 @@ export type SubscanUniqueTokenData = {
     };
   };
 };
+
+export type TokenQNMintingData = {
+  channelRewardClaimedEvents: Array<{
+    amount: string;
+  }>;
+  requestFundedEvents: Array<{
+    amount: string;
+  }>;
+  workers: Array<{
+    payouts: Array<{
+      amount: string;
+      createdAt: string;
+    }>;
+  }>;
+  councilMembers: Array<{
+    rewardpaymenteventcouncilMember: Array<{
+      paidBalance: string;
+      createdAt: string;
+    }>;
+  }>;
+  budgetSpendingEvents: Array<{
+    createdAt: string;
+    amount: string;
+  }>;
+};

@@ -37,6 +37,12 @@ export const getDateMonthsAgo = (months: number) => {
   return date;
 };
 
+export const getDateYearsAgo = (years: number) => {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() - years);
+  return date;
+};
+
 export const getYearMonthDayString = (date: Date) => {
   return date.toISOString().split("T")[0];
 };

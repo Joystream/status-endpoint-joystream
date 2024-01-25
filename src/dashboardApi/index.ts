@@ -48,8 +48,9 @@ import {
   TweetScoutAPITopFollowers,
   SubscanPriceHistoryListData,
   SubscanUniqueTokenData,
+  TokenQNMintingData,
 } from "./types";
-import { TEAM_QN_QUERIES, TRACTION_QN_QUERIES } from "./queries";
+import { TEAM_QN_QUERIES, TOKEN_MINTING_QN_QUERY, TRACTION_QN_QUERIES } from "./queries";
 import {
   getDateWeeksAgo,
   getDateMonthsAgo,
@@ -57,6 +58,7 @@ import {
   getTomorrowsDate,
   getUnixTimestampFromDate,
   getDateDaysAgo,
+  getDateYearsAgo,
 } from "../utils";
 
 config();
@@ -224,6 +226,89 @@ export class DashboardAPI {
     return name;
   }
 
+  async getTokenMintingData() {
+    const qnMintingData = await this.joyAPI.qnQuery<TokenQNMintingData>(TOKEN_MINTING_QN_QUERY);
+    const validatorRewards = await this.joyAPI.getYearOfValidatorRewards();
+
+    // TODO: Update this
+    if (!qnMintingData) return null;
+
+    const cumulativeCreatorPayoutsAmount = hapiToJoy(
+      qnMintingData.channelRewardClaimedEvents.reduce((acc, event) => acc + Number(event.amount), 0)
+    );
+
+    const cumulativeSpendingProposalsAmount = hapiToJoy(
+      qnMintingData.requestFundedEvents.reduce((acc, event) => acc + Number(event.amount), 0)
+    );
+
+    const oneYearAgo = getDateYearsAgo(1);
+
+    const cumulativeWorkersRewardsAmount = hapiToJoy(
+      qnMintingData.workers.reduce(
+        (acc, worker) =>
+          acc +
+          worker.payouts.reduce((acc, payout) => {
+            if (new Date(payout.createdAt) > oneYearAgo) {
+              return acc + Number(payout.amount);
+            }
+
+            return acc;
+          }, 0),
+        0
+      )
+    );
+
+    const cumulativeCouncilorRewardsAmount = hapiToJoy(
+      qnMintingData.councilMembers.reduce(
+        (acc, councilMember) =>
+          acc +
+          councilMember.rewardpaymenteventcouncilMember.reduce((acc, reward) => {
+            if (new Date(reward.createdAt) > oneYearAgo) {
+              return acc + Number(reward.paidBalance);
+            }
+
+            return acc;
+          }, 0),
+        0
+      )
+    );
+
+    const cumulativeDiscretionaryPaymentAmount = hapiToJoy(
+      qnMintingData.budgetSpendingEvents.reduce((acc, event) => acc + Number(event.amount), 0)
+    );
+
+    const cumulativeTotalWorkersRewardsAmount =
+      cumulativeWorkersRewardsAmount +
+      cumulativeCouncilorRewardsAmount +
+      cumulativeDiscretionaryPaymentAmount;
+
+    const totalMinting =
+      cumulativeCreatorPayoutsAmount +
+      cumulativeSpendingProposalsAmount +
+      cumulativeTotalWorkersRewardsAmount +
+      validatorRewards;
+
+    console.log({
+      cumulativeCreatorPayoutsAmount,
+      cumulativeSpendingProposalsAmount,
+      cumulativeTotalWorkersRewardsAmount,
+      workers: {
+        cumulativeWorkersRewardsAmount,
+        cumulativeCouncilorRewardsAmount,
+        cumulativeDiscretionaryPaymentAmount,
+      },
+      validatorRewards,
+      totalMinting,
+    });
+
+    return {
+      workerMintingPercentage: (cumulativeTotalWorkersRewardsAmount / totalMinting) * 100,
+      creatorPayoutsMintingPercentage: (cumulativeCreatorPayoutsAmount / totalMinting) * 100,
+      spendingProposalsMintingPercentage: (cumulativeSpendingProposalsAmount / totalMinting) * 100,
+      validatorMintingPercentage: (validatorRewards / totalMinting) * 100,
+    };
+  }
+
   async fetchJoystreamAdresses(joyPrice: number) {
     let addresses: any[] = [];
 
@@ -315,6 +400,7 @@ export class DashboardAPI {
       dailyLongTermTokenData,
       circulatingSupply,
       totalSupply,
+      tokenMintingData,
       uniqueTokenData,
       joystreamAddresses,
     ] = await Promise.all([
@@ -327,6 +413,7 @@ export class DashboardAPI {
       }),
       this.joyAPI.calculateCirculatingSupply(),
       this.joyAPI.totalIssuanceInJOY(),
+      this.getTokenMintingData(),
       this.fetchSubscanData<SubscanUniqueTokenData>(
         "https://joystream.api.subscan.io/api/scan/token/unique_id",
         undefined,
@@ -334,6 +421,8 @@ export class DashboardAPI {
       ),
       this.fetchJoystreamAdresses(price ?? 0),
     ]);
+
+    console.log(tokenMintingData);
 
     if (uniqueTokenData) {
       const { inflation, bonded_locked_balance } = uniqueTokenData.detail.JOY;
@@ -957,9 +1046,9 @@ export class DashboardAPI {
   async getFullData() {
     await this.joyAPI.init;
     // TODO: Fetching engineering data uses 383 API units. Plan this into cron job timing.
-    const tokenData = await this.getTokenData();
+    // const tokenData = await this.getTokenData();
 
-    console.log(tokenData);
+    // console.log(tokenData);
     // const engineeringData = await this.getEngineeringData();
     // console.log(engineeringData);
     // const tractionData = await this.getTractionData();
@@ -968,5 +1057,19 @@ export class DashboardAPI {
     // console.log(JSON.stringify(communityData, null, 2));
     // const teamData = await this.getTeamData();
     // console.log(JSON.stringify(teamData, null, 2));
+
+    console.log(
+      (
+        (await this.joyAPI.qnQuery(`{
+        budgetSpendingEvents(limit: 1000000) {
+          createdAt
+          amount
+          group {
+            name
+          }
+      }
+    }`)) as any
+      ).budgetSpendingEvents.reduce((acc: number, curr: any) => acc + Number(curr.amount), 0)
+    );
   }
 }

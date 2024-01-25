@@ -1,13 +1,48 @@
+import { getDateMonthsAgo, getDateYearsAgo } from "../utils";
+
 // Sets the initial date for traction data to 6 months ago.
-const TRACTION_DATA_INITIAL_DATE = new Date();
-TRACTION_DATA_INITIAL_DATE.setMonth(TRACTION_DATA_INITIAL_DATE.getMonth() - 6);
+const TRACTION_DATA_INITIAL_DATE_SIX_MONTHS_AGO = getDateMonthsAgo(6);
+const TRACTION_DATA_INITIAL_DATE_ONE_YEAR_AGO = getDateYearsAgo(1);
+
+// TODO: This needs to be fixed to use dates passed into the query. These can go stale.
+
+export const TOKEN_MINTING_QN_QUERY = `{
+  channelRewardClaimedEvents(
+    limit:1000000,
+    where: { createdAt_gte: "${TRACTION_DATA_INITIAL_DATE_ONE_YEAR_AGO.toISOString()}" }
+  ) {
+    amount
+  }
+  requestFundedEvents(
+    limit: 1000000,
+    where: { createdAt_gte: "${TRACTION_DATA_INITIAL_DATE_ONE_YEAR_AGO.toISOString()}" }
+  ) {
+    amount
+  }
+  workers (limit: 1000000) {
+    payouts {
+      amount
+      createdAt
+    }
+  }
+  councilMembers(limit: 1000000) {
+    rewardpaymenteventcouncilMember {
+      paidBalance
+      createdAt
+    }
+  }
+  budgetSpendingEvents(limit: 1000000, where: { createdAt_gte: "${TRACTION_DATA_INITIAL_DATE_ONE_YEAR_AGO.toISOString()}" }) {
+    createdAt
+    amount
+  }
+}`;
 
 export const TRACTION_QN_QUERIES = {
   CHANNELS: `{
     channelsConnection {
       totalCount
     }
-    channels(limit: 1000000, where: { createdAt_gt: "${TRACTION_DATA_INITIAL_DATE.toISOString()}" }, orderBy: createdAt_ASC) {
+    channels(limit: 1000000, where: { createdAt_gt: "${TRACTION_DATA_INITIAL_DATE_SIX_MONTHS_AGO.toISOString()}" }, orderBy: createdAt_ASC) {
       createdAt
     }
   }
@@ -18,7 +53,7 @@ export const TRACTION_QN_QUERIES = {
     }
   }`,
   VIDEOS: (offset: number, limit: number) => `{
-    videos(offset: ${offset}, limit: ${limit}, where: { createdAt_gt: "${TRACTION_DATA_INITIAL_DATE.toISOString()}" }, orderBy: createdAt_ASC) {
+    videos(offset: ${offset}, limit: ${limit}, where: { createdAt_gt: "${TRACTION_DATA_INITIAL_DATE_SIX_MONTHS_AGO.toISOString()}" }, orderBy: createdAt_ASC) {
       createdAt
     }
   }
@@ -33,13 +68,13 @@ export const TRACTION_QN_QUERIES = {
     videoReactionsConnection {
       totalCount
     }
-    comments (limit:1000000, where: { createdAt_gt: "${TRACTION_DATA_INITIAL_DATE.toISOString()}" }, orderBy: createdAt_ASC) {
+    comments (limit:1000000, where: { createdAt_gt: "${TRACTION_DATA_INITIAL_DATE_SIX_MONTHS_AGO.toISOString()}" }, orderBy: createdAt_ASC) {
       createdAt
     }
-    commentReactions (limit:1000000, where: { createdAt_gt: "${TRACTION_DATA_INITIAL_DATE.toISOString()}" }, orderBy: createdAt_ASC) {
+    commentReactions (limit:1000000, where: { createdAt_gt: "${TRACTION_DATA_INITIAL_DATE_SIX_MONTHS_AGO.toISOString()}" }, orderBy: createdAt_ASC) {
       createdAt
     }
-    videoReactions (limit:1000000, where: { createdAt_gt: "${TRACTION_DATA_INITIAL_DATE.toISOString()}" }, orderBy: createdAt_ASC) {
+    videoReactions (limit:1000000, where: { createdAt_gt: "${TRACTION_DATA_INITIAL_DATE_SIX_MONTHS_AGO.toISOString()}" }, orderBy: createdAt_ASC) {
       createdAt
     }
   }
