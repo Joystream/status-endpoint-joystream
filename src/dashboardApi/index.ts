@@ -379,6 +379,8 @@ export class DashboardAPI {
     let price: number | null = null;
     let priceWeeklyChange = null;
     let longTermPriceData: TimestampToValueTupleArray = [];
+    let marketCap = null;
+    let marketCapWeeklyChange = null;
     let volume = null;
     let volumeWeeklyChange = null;
     let longTermVolumeData: TimestampToValueTupleArray = [];
@@ -466,6 +468,12 @@ export class DashboardAPI {
         ...dailyLongTermTokenData.total_volumes,
         [new Date().getTime(), volume],
       ];
+
+      const lastWeekMarketCap =
+        dailyLongTermTokenData.market_caps[dailyLongTermTokenData.market_caps.length - 7][1];
+
+      marketCap = price ? circulatingSupply * price : null;
+      marketCapWeeklyChange = (((marketCap ?? 0) - lastWeekMarketCap) / lastWeekMarketCap) * 100;
     }
 
     if (uniqueTokenData) {
@@ -546,6 +554,8 @@ export class DashboardAPI {
       price,
       priceWeeklyChange,
       longTermPriceData,
+      marketCap,
+      marketCapWeeklyChange,
       volume,
       volumeWeeklyChange,
       longTermVolumeData,
