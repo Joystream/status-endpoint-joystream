@@ -96,9 +96,13 @@ const ADDRESS_DISTRIBUTION_INTEREST_POINTS_IN_JOY = (joyPrice: number) => [
   1_000_000,
 ];
 
-// Since there's no way of tracking the amount of tokens burned, we have to hardcode this value.
+// Since there's no way of tracking the amount of tokens burned, we have to hardcode these values.
 // TODO: Update when it substantially strays from this value.
 const AMOUNT_OF_JOY_BURNED_TILL_JAN_2024 = 35_000_000;
+
+// Sources for this:
+// https://pioneerapp.xyz/#/forum/thread/632?post=5299, https://pioneerapp.xyz/#/proposals/preview/717
+const AMOUNT_OF_JOY_MINTED_FOR_LIQUIDITY_PROVISION = 1_560_000;
 
 const filterAddressesByDistributionInterest = (
   addresses: any[],
@@ -305,7 +309,9 @@ export class DashboardAPI {
             BigInt(0)
           )
         )
-      ) - AMOUNT_OF_JOY_BURNED_TILL_JAN_2024;
+      ) -
+      AMOUNT_OF_JOY_BURNED_TILL_JAN_2024 -
+      AMOUNT_OF_JOY_MINTED_FOR_LIQUIDITY_PROVISION;
 
     const cumulativeTotalWorkersRewardsAmount =
       cumulativeWorkersRewardsAmount +
@@ -452,10 +458,6 @@ export class DashboardAPI {
 
       const lastWeekVolume =
         dailyLongTermTokenData.total_volumes[dailyLongTermTokenData.total_volumes.length - 7][1];
-
-      console.log(
-        dailyLongTermTokenData.total_volumes[dailyLongTermTokenData.total_volumes.length - 7]
-      );
 
       volume =
         dailyShortTermTokenData.total_volumes[dailyShortTermTokenData.total_volumes.length - 1][1];
