@@ -94,6 +94,10 @@ const ADDRESS_DISTRIBUTION_INTEREST_POINTS_IN_JOY = (joyPrice: number) => [
   1_000_000,
 ];
 
+// Since there's no way of tracking the amount of tokens burned, we have to hardcode this value.
+// TODO: Update when it substantially strays from this value.
+const AMOUNT_OF_JOY_BURNED_TILL_JAN_2024 = 35_000_000;
+
 const filterAddressesByDistributionInterest = (
   addresses: any[],
   joyPrice: number,
@@ -117,7 +121,7 @@ export class DashboardAPI {
 
   constructor() {
     this.githubAPI = new Octokit({ auth: GITHUB_AUTH_TOKEN });
-    this.joyAPI = new JoyApi("wss://rpc.joyutils.org");
+    this.joyAPI = new JoyApi();
     this.discordAPI = new REST({ version: "10" }).setToken(DISCORD_BOT_TOKEN);
   }
 
@@ -234,48 +238,72 @@ export class DashboardAPI {
     if (!qnMintingData) return null;
 
     const cumulativeCreatorPayoutsAmount = hapiToJoy(
-      qnMintingData.channelRewardClaimedEvents.reduce((acc, event) => acc + Number(event.amount), 0)
+      Number(
+        qnMintingData.channelRewardClaimedEvents.reduce(
+          (acc, event) => acc + BigInt(event.amount),
+          BigInt(0)
+        )
+      )
     );
 
     const cumulativeSpendingProposalsAmount = hapiToJoy(
-      qnMintingData.requestFundedEvents.reduce((acc, event) => acc + Number(event.amount), 0)
+      Number(
+        qnMintingData.requestFundedEvents.reduce(
+          (acc, event) => acc + BigInt(event.amount),
+          BigInt(0)
+        )
+      )
     );
 
     const oneYearAgo = getDateYearsAgo(1);
 
     const cumulativeWorkersRewardsAmount = hapiToJoy(
-      qnMintingData.workers.reduce(
-        (acc, worker) =>
-          acc +
-          worker.payouts.reduce((acc, payout) => {
-            if (new Date(payout.createdAt) > oneYearAgo) {
-              return acc + Number(payout.amount);
-            }
+      Number(
+        qnMintingData.workers.reduce(
+          (acc, worker) =>
+            acc +
+            worker.payouts.reduce((acc, payout) => {
+              if (new Date(payout.createdAt) > oneYearAgo) {
+                return acc + BigInt(payout.amount);
+              }
 
-            return acc;
-          }, 0),
-        0
+              return acc;
+            }, BigInt(0)),
+          BigInt(0)
+        )
       )
     );
 
     const cumulativeCouncilorRewardsAmount = hapiToJoy(
-      qnMintingData.councilMembers.reduce(
-        (acc, councilMember) =>
-          acc +
-          councilMember.rewardpaymenteventcouncilMember.reduce((acc, reward) => {
-            if (new Date(reward.createdAt) > oneYearAgo) {
-              return acc + Number(reward.paidBalance);
-            }
+      Number(
+        qnMintingData.councilMembers.reduce(
+          (acc, councilMember) =>
+            acc +
+            councilMember.rewardpaymenteventcouncilMember.reduce((acc, reward) => {
+              if (new Date(reward.createdAt) > oneYearAgo) {
+                return acc + BigInt(reward.paidBalance);
+              }
 
-            return acc;
-          }, 0),
-        0
+              return acc;
+            }, BigInt(0)),
+          BigInt(0)
+        )
       )
     );
 
-    const cumulativeDiscretionaryPaymentAmount = hapiToJoy(
-      qnMintingData.budgetSpendingEvents.reduce((acc, event) => acc + Number(event.amount), 0)
-    );
+    // Discretionary WG payments have not only been used to pay out workers but for auxiliary
+    // actions as well (e.g., burning tokens or providing liqudity for JOY to USDT conversions).
+    // We need to subtract those amounts from the total amount of minted tokens but they're not
+    // tracked in the QN at the moment. That's why these values will be hardcoded for now.
+    const cumulativeDiscretionaryPaymentAmount =
+      hapiToJoy(
+        Number(
+          qnMintingData.budgetSpendingEvents.reduce(
+            (acc, event) => acc + BigInt(event.amount),
+            BigInt(0)
+          )
+        )
+      ) - AMOUNT_OF_JOY_BURNED_TILL_JAN_2024;
 
     const cumulativeTotalWorkersRewardsAmount =
       cumulativeWorkersRewardsAmount +
@@ -287,19 +315,6 @@ export class DashboardAPI {
       cumulativeSpendingProposalsAmount +
       cumulativeTotalWorkersRewardsAmount +
       validatorRewards;
-
-    console.log({
-      cumulativeCreatorPayoutsAmount,
-      cumulativeSpendingProposalsAmount,
-      cumulativeTotalWorkersRewardsAmount,
-      workers: {
-        cumulativeWorkersRewardsAmount,
-        cumulativeCouncilorRewardsAmount,
-        cumulativeDiscretionaryPaymentAmount,
-      },
-      validatorRewards,
-      totalMinting,
-    });
 
     return {
       workerMintingPercentage: (cumulativeTotalWorkersRewardsAmount / totalMinting) * 100,
@@ -504,6 +519,7 @@ export class DashboardAPI {
       circulatingSupply,
       fullyDilutedValue: price ? totalSupply * price : null,
       totalSupply,
+      tokenMintingData,
       joyAnnualInflation,
       percentSupplyStakedForValidation,
       roi,
@@ -1046,9 +1062,8 @@ export class DashboardAPI {
   async getFullData() {
     await this.joyAPI.init;
     // TODO: Fetching engineering data uses 383 API units. Plan this into cron job timing.
-    // const tokenData = await this.getTokenData();
-
-    // console.log(tokenData);
+    const tokenData = await this.getTokenData();
+    console.log(tokenData);
     // const engineeringData = await this.getEngineeringData();
     // console.log(engineeringData);
     // const tractionData = await this.getTractionData();
@@ -1057,19 +1072,5 @@ export class DashboardAPI {
     // console.log(JSON.stringify(communityData, null, 2));
     // const teamData = await this.getTeamData();
     // console.log(JSON.stringify(teamData, null, 2));
-
-    console.log(
-      (
-        (await this.joyAPI.qnQuery(`{
-        budgetSpendingEvents(limit: 1000000) {
-          createdAt
-          amount
-          group {
-            name
-          }
-      }
-    }`)) as any
-      ).budgetSpendingEvents.reduce((acc: number, curr: any) => acc + Number(curr.amount), 0)
-    );
   }
 }
