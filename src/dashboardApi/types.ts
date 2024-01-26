@@ -205,3 +205,11 @@ export type TokenQNMintingData = {
     amount: string;
   }>;
 };
+
+export type TimestampToValueTupleArray = Array<[number, number]>;
+
+export type CoingGeckoMarketChartRange = {
+  prices: TimestampToValueTupleArray;
+  market_caps: TimestampToValueTupleArray;
+  total_volumes: TimestampToValueTupleArray;
+};

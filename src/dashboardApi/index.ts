@@ -49,6 +49,8 @@ import {
   SubscanPriceHistoryListData,
   SubscanUniqueTokenData,
   TokenQNMintingData,
+  CoingGeckoMarketChartRange,
+  TimestampToValueTupleArray,
 } from "./types";
 import { TEAM_QN_QUERIES, TOKEN_MINTING_QN_QUERY, TRACTION_QN_QUERIES } from "./queries";
 import {
@@ -121,7 +123,7 @@ export class DashboardAPI {
 
   constructor() {
     this.githubAPI = new Octokit({ auth: GITHUB_AUTH_TOKEN });
-    this.joyAPI = new JoyApi();
+    this.joyAPI = new JoyApi("wss://rpc.joyutils.org");
     this.discordAPI = new REST({ version: "10" }).setToken(DISCORD_BOT_TOKEN);
   }
 
@@ -370,6 +372,10 @@ export class DashboardAPI {
   async getTokenData() {
     let price: number | null = null;
     let priceWeeklyChange = null;
+    let longTermPriceData: TimestampToValueTupleArray = [];
+    let volume = null;
+    let volumeWeeklyChange = null;
+    let longTermVolumeData: TimestampToValueTupleArray = [];
     let joyAnnualInflation = null;
     let percentSupplyStakedForValidation = null;
     let roi = null;
@@ -413,18 +419,22 @@ export class DashboardAPI {
 
     const [
       dailyLongTermTokenData,
+      dailyShortTermTokenData,
       circulatingSupply,
       totalSupply,
       tokenMintingData,
       uniqueTokenData,
       joystreamAddresses,
     ] = await Promise.all([
-      fetchGenericAPIData<any>({
+      fetchGenericAPIData<CoingGeckoMarketChartRange>({
         url: `https://api.coingecko.com/api/v3/coins/joystream/market_chart/range?vs_currency=usd&from=${getUnixTimestampFromDate(
-          getDateMonthsAgo(12)
-        )}&to=${getUnixTimestampFromDate(
           getDateMonthsAgo(6)
-        )}&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
+        )}&to=${getUnixTimestampFromDate(new Date())}&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
+      }),
+      fetchGenericAPIData<CoingGeckoMarketChartRange>({
+        url: `https://api.coingecko.com/api/v3/coins/joystream/market_chart/range?vs_currency=usd&from=${getUnixTimestampFromDate(
+          getDateDaysAgo(1)
+        )}&to=${getUnixTimestampFromDate(new Date())}&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
       }),
       this.joyAPI.calculateCirculatingSupply(),
       this.joyAPI.totalIssuanceInJOY(),
@@ -437,7 +447,24 @@ export class DashboardAPI {
       this.fetchJoystreamAdresses(price ?? 0),
     ]);
 
-    console.log(tokenMintingData);
+    if (dailyLongTermTokenData && dailyShortTermTokenData) {
+      longTermPriceData = [...dailyLongTermTokenData.prices, [new Date().getTime(), price ?? 0]];
+
+      const lastWeekVolume =
+        dailyLongTermTokenData.total_volumes[dailyLongTermTokenData.total_volumes.length - 7][1];
+
+      console.log(
+        dailyLongTermTokenData.total_volumes[dailyLongTermTokenData.total_volumes.length - 7]
+      );
+
+      volume =
+        dailyShortTermTokenData.total_volumes[dailyShortTermTokenData.total_volumes.length - 1][1];
+      volumeWeeklyChange = ((volume - lastWeekVolume) / lastWeekVolume) * 100;
+      longTermVolumeData = [
+        ...dailyLongTermTokenData.total_volumes,
+        [new Date().getTime(), volume],
+      ];
+    }
 
     if (uniqueTokenData) {
       const { inflation, bonded_locked_balance } = uniqueTokenData.detail.JOY;
@@ -516,6 +543,10 @@ export class DashboardAPI {
     return {
       price,
       priceWeeklyChange,
+      longTermPriceData,
+      volume,
+      volumeWeeklyChange,
+      longTermVolumeData,
       circulatingSupply,
       fullyDilutedValue: price ? totalSupply * price : null,
       totalSupply,
