@@ -659,13 +659,15 @@ export class JoyApi {
 
       const apr = staking.map(({ staking }) => {
         if(staking.total.isZero())
-          return 0;
+          return {};
 
         const averageReward = rewardHistory.reduce((acc, { eraReward}) => acc.add(eraReward), new BN(0)).divn(rewardHistory.length);
         const apr = Number(averageReward.muln(ERAS_PER_YEAR).muln(commission).div(staking.total));
 
-        return apr;
+        return { APR: apr };
       });
+
+      console.log(apr)
 
       return apr;
     });
