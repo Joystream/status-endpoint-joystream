@@ -1,6 +1,6 @@
 import '@joystream/types'
 import { WsProvider, ApiPromise } from "@polkadot/api";
-import { ChainProperties, Hash } from "@polkadot/types/interfaces";
+import { Balance, ChainProperties, Hash } from "@polkadot/types/interfaces";
 import { config } from "dotenv";
 import BN from "bn.js";
 import fetch from "cross-fetch"
@@ -572,6 +572,64 @@ export class JoyApi {
     const endBlockHash = await this.api.rpc.chain.getBlockHash(currentBlock);
 
     return await this.getValidatorReward(startBlockHash.toHex(), endBlockHash.toHex());
+  }
+
+  async APR() {
+    const validators = await this.api.query.staking.validators.entries();
+    const validatorStashAddresses = await this.api.query.staking.bonded.multi(validators.map(([key]) => key.args[0].toString()));
+    const validatorsInfo = validatorStashAddresses.map((address, index) => ({
+      stashAddress: address.toString(),
+      commission: validators[index][1].commission.toNumber() / 10_000_000,
+    }));
+
+    console.log(validatorsInfo)
+
+    const address = validatorStashAddresses[0].toString();
+
+    const erasRewards = await this.api.derive.staking.erasRewards();
+    const eraRewardPoints = await this.api.derive.staking.erasPoints();
+
+    const validatorsRewards = eraRewardPoints.map((points, index) => {
+      const era = points.era.toNumber();
+      const reward = erasRewards[index];
+
+      if(era !== reward?.era.toNumber()) {
+        // TODO: Is this a good way to handle this?
+        throw new Error(`era mismatch: ${era} !== ${reward?.era.toNumber()}`);
+      }
+
+      return {
+        era,
+        totalPoints: points.eraPoints.toNumber(),
+        totalReward: reward.eraReward,
+        individual:
+          (Object.entries(points.validators)
+            .map(([address, points]) => [address, points.toNumber()]) as [string, number][])
+            .reduce((acc, [address, points]) => {
+              acc[address] = points;
+
+              return acc
+          }, {} as { [key: string]: number })
+      }
+    })
+
+    const rewardHistory = validatorsRewards.reduce((acc, {era, totalPoints, totalReward, individual}) => {
+      if(!individual[address]) {
+        return acc
+      };
+
+      return [
+        ...acc,
+        {
+          era,
+          eraPoints: Number(individual[address]),
+          eraReward: totalReward.muln(Number(individual[address]) / totalPoints),
+        }
+      ]
+    }, [] as { era: number, eraReward: BN, eraPoints: number}[]);
+
+    // const apr =
+
   }
 
   protected async fetchNetworkStatus(): Promise<NetworkStatus> {
