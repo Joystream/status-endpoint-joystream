@@ -10,6 +10,7 @@ import {
   PalletReferendumReferendumStage as ReferendumStage,
   PalletCouncilCouncilStageUpdate as CouncilStageUpdate,
   PalletVestingVestingInfo,
+  PalletStakingExposure,
 } from '@polkadot/types/lookup'
 import { Vec } from '@polkadot/types';
 import { HexString } from '@polkadot/util/types';
@@ -23,6 +24,8 @@ if(process.env.QUERY_NODE === undefined){
 }
 const QUERY_NODE = process.env.QUERY_NODE;
 const VESTING_STRING_HEX = "0x76657374696e6720";
+const ERAS_PER_DAY = 4;
+const ERAS_PER_YEAR = ERAS_PER_DAY * 365
 
 type SystemData = {
   chain: string
@@ -574,17 +577,40 @@ export class JoyApi {
     return await this.getValidatorReward(startBlockHash.toHex(), endBlockHash.toHex());
   }
 
+  // TODO: When calculating this, we need to consider a value that encompasses APR for each validator.
+  // For this we could do just a simple average or a weighted average based on the amount of stake.
   async APR() {
     const validators = await this.api.query.staking.validators.entries();
     const validatorStashAddresses = await this.api.query.staking.bonded.multi(validators.map(([key]) => key.args[0].toString()));
     const validatorsInfo = validatorStashAddresses.map((address, index) => ({
+      controllerAddress: validators[index][0].args[0].toString(),
       stashAddress: address.toString(),
       commission: validators[index][1].commission.toNumber() / 10_000_000,
     }));
 
-    console.log(validatorsInfo)
+    const activeEra = await this.api.query.staking.activeEra();
+    const activeEraData = {
+      index: activeEra.unwrap().index.toNumber(),
+      start: activeEra.unwrap().start.unwrap().toNumber(),
+    };
 
-    const address = validatorStashAddresses[0].toString();
+    const stakers = await Promise.all(
+      validators.map(async (account) => {
+        const staker = await this.api.query.staking.erasStakers(activeEraData.index, account[0].args[0]);
+
+        return [account.toString(), staker] as [string, PalletStakingExposure];
+      })
+    );
+
+    const staking = stakers.map(([account, staker]) => {
+      const total = staker.total.toBn();
+      const nominators = staker.others.map(nominator => ({
+        address: nominator.who.toString(),
+        stake: nominator.value.toBn(),
+      }));
+
+      return { staking: { total, own: staker.own.toBn(), nominators} };
+    });
 
     const erasRewards = await this.api.derive.staking.erasRewards();
     const eraRewardPoints = await this.api.derive.staking.erasPoints();
@@ -613,23 +639,36 @@ export class JoyApi {
       }
     })
 
-    const rewardHistory = validatorsRewards.reduce((acc, {era, totalPoints, totalReward, individual}) => {
-      if(!individual[address]) {
-        return acc
-      };
+    const data = validatorsInfo.map(({ controllerAddress, stashAddress, commission }, index) => {
+      const rewardHistory = validatorsRewards.reduce((acc, {era, totalPoints, totalReward, individual}) => {
+        if(!individual[stashAddress]) {
+          return acc
+        };
 
-      return [
-        ...acc,
-        {
-          era,
-          eraPoints: Number(individual[address]),
-          eraReward: totalReward.muln(Number(individual[address]) / totalPoints),
-        }
-      ]
-    }, [] as { era: number, eraReward: BN, eraPoints: number}[]);
+        const eraPoints = Number(individual[stashAddress]);
 
-    // const apr =
+        return [
+          ...acc,
+          {
+            era,
+            eraPoints,
+            eraReward: totalReward.muln(eraPoints / totalPoints),
+          }
+        ]
+      }, [] as { era: number, eraReward: BN, eraPoints: number}[]);
 
+      const apr = staking.map(({ staking }) => {
+        if(staking.total.isZero())
+          return 0;
+
+        const averageReward = rewardHistory.reduce((acc, { eraReward}) => acc.add(eraReward), new BN(0)).divn(rewardHistory.length);
+        const apr = Number(averageReward.muln(ERAS_PER_YEAR).muln(commission).div(staking.total));
+
+        return apr;
+      });
+
+      return apr;
+    });
   }
 
   protected async fetchNetworkStatus(): Promise<NetworkStatus> {

@@ -127,7 +127,7 @@ export class DashboardAPI {
 
   constructor() {
     this.githubAPI = new Octokit({ auth: GITHUB_AUTH_TOKEN });
-    this.joyAPI = new JoyApi("wss://rpc.joyutils.org");
+    this.joyAPI = new JoyApi();
     this.discordAPI = new REST({ version: "10" }).setToken(DISCORD_BOT_TOKEN);
   }
 
