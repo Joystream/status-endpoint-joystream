@@ -213,3 +213,12 @@ export type CoingGeckoMarketChartRange = {
   market_caps: TimestampToValueTupleArray;
   total_volumes: TimestampToValueTupleArray;
 };
+
+export type SubscanAccountsList = Array<{
+  balance: string;
+}>;
+
+export type SubscanAccountsData = {
+  count: number;
+  list: SubscanAccountsList;
+};

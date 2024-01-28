@@ -51,6 +51,8 @@ import {
   TokenQNMintingData,
   CoingGeckoMarketChartRange,
   TimestampToValueTupleArray,
+  SubscanAccountsData,
+  SubscanAccountsList,
 } from "./types";
 import { TEAM_QN_QUERIES, TOKEN_MINTING_QN_QUERY, TRACTION_QN_QUERIES } from "./queries";
 import {
@@ -105,7 +107,7 @@ const AMOUNT_OF_JOY_BURNED_TILL_JAN_2024 = 35_000_000;
 const AMOUNT_OF_JOY_MINTED_FOR_LIQUIDITY_PROVISION = 1_560_000;
 
 const filterAddressesByDistributionInterest = (
-  addresses: any[],
+  addresses: SubscanAccountsList,
   joyPrice: number,
   distributionInterestPointIndex: number
 ) => {
@@ -116,7 +118,7 @@ const filterAddressesByDistributionInterest = (
   );
 };
 
-const addressBalanceSum = (addresses: any[]) => {
+const addressBalanceSum = (addresses: SubscanAccountsList) => {
   return addresses.reduce((acc, curr) => acc + Number(curr.balance), 0);
 };
 
@@ -333,9 +335,9 @@ export class DashboardAPI {
   }
 
   async fetchJoystreamAdresses(joyPrice: number) {
-    let addresses: any[] = [];
+    let addresses: SubscanAccountsList = [];
 
-    const accountData = await this.fetchSubscanData<any>(
+    const accountData = await this.fetchSubscanData<SubscanAccountsData>(
       "https://joystream.api.subscan.io/api/v2/scan/accounts",
       {
         order_field: "balance",
@@ -353,7 +355,7 @@ export class DashboardAPI {
     addresses = accountData.list;
 
     while (true) {
-      const accountData = await this.fetchSubscanData<any>(
+      const accountData = await this.fetchSubscanData<SubscanAccountsData>(
         "https://joystream.api.subscan.io/api/v2/scan/accounts",
         {
           order_field: "balance",
@@ -364,12 +366,17 @@ export class DashboardAPI {
         }
       );
 
+      if (!accountData) break;
+
       const MINIMUM_JOY_ADDRESS_AMOUNT = ADDRESS_DISTRIBUTION_INTEREST_POINTS_IN_JOY(joyPrice)[4];
 
       addresses = [...addresses, ...accountData.list];
       currentPageCount++;
 
-      if (accountData.list[accountData.list.length - 1].balance < MINIMUM_JOY_ADDRESS_AMOUNT) break;
+      if (
+        Number(accountData.list[accountData.list.length - 1].balance) < MINIMUM_JOY_ADDRESS_AMOUNT
+      )
+        break;
     }
 
     return { totalNumberOfAddresses: accountData.count, addresses };
@@ -660,7 +667,7 @@ export class DashboardAPI {
       const { nftBoughtEvents } = nftBoughtEventsData;
 
       totalVolumeOfSoldNFTs = hapiToJoy(
-        nftBoughtEvents.reduce((acc: number, curr: any) => acc + Number(curr.price), 0)
+        nftBoughtEvents.reduce((acc: number, curr) => acc + Number(curr.price), 0)
       );
 
       const totalVolumeOfSoldNFTsAWeekAgo =
@@ -704,10 +711,10 @@ export class DashboardAPI {
     if (extrinsicData) {
       const totalNumberOfTransactionsAWeekAgo = extrinsicData.list
         .slice(0, extrinsicData.list.length - 7)
-        .reduce((acc: number, curr: any) => acc + curr.total, 0);
+        .reduce((acc: number, curr) => acc + curr.total, 0);
 
       totalNumberOfTransactions = extrinsicData.list.reduce(
-        (acc: number, curr: any) => acc + curr.total,
+        (acc: number, curr) => acc + curr.total,
         0
       );
       totalNumberOfTransactionsWeeklyChange =
@@ -974,8 +981,8 @@ export class DashboardAPI {
       workingGroups = workersData.workingGroups.reduce((acc, wg) => {
         acc[wg.id] = {
           workers: wg.workers
-            .filter((w: any) => w.isActive)
-            .map((w: any) => ({
+            .filter((w) => w.isActive)
+            .map((w) => ({
               handle: w.membership.handle,
               isLead: w.isLead,
               avatar: w.membership.metadata.avatar?.avatarUri,
