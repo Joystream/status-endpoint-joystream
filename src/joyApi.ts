@@ -14,6 +14,7 @@ import {
 } from '@polkadot/types/lookup'
 import { Vec } from '@polkadot/types';
 import { HexString } from '@polkadot/util/types';
+import { perbillToPercent } from './utils';
 
 // Init .env config
 config();
@@ -577,100 +578,21 @@ export class JoyApi {
     return await this.getValidatorReward(startBlockHash.toHex(), endBlockHash.toHex());
   }
 
-  // TODO: When calculating this, we need to consider a value that encompasses APR for each validator.
-  // For this we could do just a simple average or a weighted average based on the amount of stake.
   async APR() {
+    const activeValidatorAddresses = await this.api.query.session.validators();
     const validators = await this.api.query.staking.validators.entries();
-    const validatorStashAddresses = await this.api.query.staking.bonded.multi(validators.map(([key]) => key.args[0].toString()));
-    const validatorsInfo = validatorStashAddresses.map((address, index) => ({
-      controllerAddress: validators[index][0].args[0].toString(),
-      stashAddress: address.toString(),
-      commission: validators[index][1].commission.toNumber() / 10_000_000,
-    }));
+    const activeValidators = validators.filter(([key, _]) => activeValidatorAddresses.includes(key.args[0].toString()));
 
     const activeEra = await this.api.query.staking.activeEra();
-    const activeEraData = {
-      index: activeEra.unwrap().index.toNumber(),
-      start: activeEra.unwrap().start.unwrap().toNumber(),
-    };
-
-    const stakers = await Promise.all(
-      validators.map(async (account) => {
-        const staker = await this.api.query.staking.erasStakers(activeEraData.index, account[0].args[0]);
-
-        return [account.toString(), staker] as [string, PalletStakingExposure];
-      })
-    );
-
-    const staking = stakers.map(([account, staker]) => {
-      const total = staker.total.toBn();
-      const nominators = staker.others.map(nominator => ({
-        address: nominator.who.toString(),
-        stake: nominator.value.toBn(),
-      }));
-
-      return { staking: { total, own: staker.own.toBn(), nominators} };
-    });
-
     const erasRewards = await this.api.derive.staking.erasRewards();
-    const eraRewardPoints = await this.api.derive.staking.erasPoints();
 
-    const validatorsRewards = eraRewardPoints.map((points, index) => {
-      const era = points.era.toNumber();
-      const reward = erasRewards[index];
+    const averageRewardInAnEra = erasRewards.reduce((acc, { eraReward }) => acc.add(eraReward), new BN(0)).divn(erasRewards.length);
+    const totalStakeInCurrentEra = (await this.api.query.staking.erasTotalStake(activeEra.unwrap().index.toNumber())).toBn();
+    const averageCommission = activeValidators.reduce((acc, validator) => acc.add(validator[1].commission.toBn()), new BN(0));
 
-      if(era !== reward?.era.toNumber()) {
-        // TODO: Is this a good way to handle this?
-        throw new Error(`era mismatch: ${era} !== ${reward?.era.toNumber()}`);
-      }
+    const apr = perbillToPercent(averageRewardInAnEra.muln(ERAS_PER_YEAR).mul(averageCommission).div(totalStakeInCurrentEra).divn(activeValidators.length));
 
-      return {
-        era,
-        totalPoints: points.eraPoints.toNumber(),
-        totalReward: reward.eraReward,
-        individual:
-          (Object.entries(points.validators)
-            .map(([address, points]) => [address, points.toNumber()]) as [string, number][])
-            .reduce((acc, [address, points]) => {
-              acc[address] = points;
-
-              return acc
-          }, {} as { [key: string]: number })
-      }
-    })
-
-    const data = validatorsInfo.map(({ controllerAddress, stashAddress, commission }, index) => {
-      const rewardHistory = validatorsRewards.reduce((acc, {era, totalPoints, totalReward, individual}) => {
-        if(!individual[stashAddress]) {
-          return acc
-        };
-
-        const eraPoints = Number(individual[stashAddress]);
-
-        return [
-          ...acc,
-          {
-            era,
-            eraPoints,
-            eraReward: totalReward.muln(eraPoints / totalPoints),
-          }
-        ]
-      }, [] as { era: number, eraReward: BN, eraPoints: number}[]);
-
-      const apr = staking.map(({ staking }) => {
-        if(staking.total.isZero())
-          return {};
-
-        const averageReward = rewardHistory.reduce((acc, { eraReward}) => acc.add(eraReward), new BN(0)).divn(rewardHistory.length);
-        const apr = Number(averageReward.muln(ERAS_PER_YEAR).muln(commission).div(staking.total));
-
-        return { APR: apr };
-      });
-
-      console.log(apr)
-
-      return apr;
-    });
+    return apr;
   }
 
   protected async fetchNetworkStatus(): Promise<NetworkStatus> {

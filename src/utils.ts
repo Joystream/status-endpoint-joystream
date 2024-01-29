@@ -1,3 +1,5 @@
+import { BN } from "@polkadot/util";
+
 export const calculateSecondsUntilNextInterval = (seconds: number) => {
   const MINUTES_IN_MILLISECONDS = 1000 * 60 * seconds;
 
@@ -8,6 +10,8 @@ export const calculateSecondsUntilNextInterval = (seconds: number) => {
 
   return Math.floor((next5MinuteInterval.getTime() - now.getTime()) / 1000);
 };
+
+export const perbillToPercent = (perbill: BN) => perbill.toNumber() / 10 ** 7
 
 export const getUnixTimestampFromDate = (date: Date) => {
   return Math.floor(date.getTime() / 1000);

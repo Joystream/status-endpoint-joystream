@@ -439,6 +439,7 @@ export class DashboardAPI {
       totalSupply,
       tokenMintingData,
       uniqueTokenData,
+      apr,
       joystreamAddresses,
     ] = await Promise.all([
       fetchGenericAPIData<CoingGeckoMarketChartRange>({
@@ -459,6 +460,7 @@ export class DashboardAPI {
         undefined,
         "GET"
       ),
+      this.joyAPI.APR(),
       this.fetchJoystreamAdresses(price ?? 0),
     ]);
 
@@ -572,6 +574,7 @@ export class DashboardAPI {
       tokenMintingData,
       joyAnnualInflation,
       percentSupplyStakedForValidation,
+      apr,
       roi,
       supplyDistribution,
     };
@@ -1112,8 +1115,8 @@ export class DashboardAPI {
   async getFullData() {
     await this.joyAPI.init;
     // TODO: Fetching engineering data uses 383 API units. Plan this into cron job timing.
-    // const tokenData = await this.getTokenData();
-    // console.log(tokenData);
+    const tokenData = await this.getTokenData();
+    console.log(tokenData);
     // const engineeringData = await this.getEngineeringData();
     // console.log(engineeringData);
     // const tractionData = await this.getTractionData();
@@ -1122,7 +1125,5 @@ export class DashboardAPI {
     // console.log(JSON.stringify(communityData, null, 2));
     // const teamData = await this.getTeamData();
     // console.log(JSON.stringify(teamData, null, 2));
-
-    console.log(await this.joyAPI.APR());
   }
 }
