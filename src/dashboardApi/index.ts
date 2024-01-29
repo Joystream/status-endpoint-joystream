@@ -618,12 +618,46 @@ export class DashboardAPI {
       videosData,
       commentsAndReactionsData,
       nftBoughtEventsData,
+      blockchainMetadata,
+      extrinsicData,
+      dailyAccountHolderData,
+      dailyActiveAccountData,
     ] = await Promise.all([
       this.joyAPI.qnQuery<ChannelsQueryData>(TRACTION_QN_QUERIES.CHANNELS()),
       this.joyAPI.qnQuery<VideosConnectionData>(TRACTION_QN_QUERIES.VIDEOS_CONNECTION),
       paginatedQNFetch<GenericQNTractionItem>(TRACTION_QN_QUERIES.VIDEOS),
       this.joyAPI.qnQuery<CommentsAndReactionsData>(TRACTION_QN_QUERIES.COMMENTS_AND_REACTIONS()),
       this.joyAPI.qnQuery<NFTBoughtEventsData>(TRACTION_QN_QUERIES.NFT_BOUGHT_EVENTS),
+      this.fetchSubscanData<SubscanBlockchainMetadata>(
+        "https://joystream.api.subscan.io/api/scan/metadata"
+      ),
+      this.fetchSubscanData<GeneralSubscanDailyListData>(
+        "https://joystream.api.subscan.io/api/scan/daily",
+        {
+          category: "extrinsic",
+          start: "2022-12-01",
+          format: "day",
+          end: getYearMonthDayString(new Date()),
+        }
+      ),
+      this.fetchSubscanData<GeneralSubscanDailyListData>(
+        "https://joystream.api.subscan.io/api/scan/daily",
+        {
+          category: "AccountHolderTotal",
+          start: getYearMonthDayString(getDateWeeksAgo(1)),
+          format: "day",
+          end: getYearMonthDayString(new Date()),
+        }
+      ),
+      this.fetchSubscanData<GeneralSubscanDailyListData>(
+        "https://joystream.api.subscan.io/api/scan/daily",
+        {
+          category: "ActiveAccount",
+          start: getYearMonthDayString(getDateWeeksAgo(1)),
+          format: "day",
+          end: getYearMonthDayString(new Date()),
+        }
+      ),
     ]);
 
     if (channelsData) {
@@ -708,23 +742,9 @@ export class DashboardAPI {
     let numberOfDailyActiveAccounts = null;
     let numberOfDailyActiveAccountsWeeklyChange = null;
 
-    const blockchainMetadata = await this.fetchSubscanData<SubscanBlockchainMetadata>(
-      "https://joystream.api.subscan.io/api/scan/metadata"
-    );
-
     if (blockchainMetadata) {
       averageBlockTime = blockchainMetadata.avgBlockTime;
     }
-
-    const extrinsicData = await this.fetchSubscanData<GeneralSubscanDailyListData>(
-      "https://joystream.api.subscan.io/api/scan/daily",
-      {
-        category: "extrinsic",
-        start: "2022-12-01",
-        format: "day",
-        end: getYearMonthDayString(new Date()),
-      }
-    );
 
     if (extrinsicData) {
       const totalNumberOfTransactionsAWeekAgo = extrinsicData.list
@@ -741,16 +761,6 @@ export class DashboardAPI {
         100;
     }
 
-    const dailyAccountHolderData = await this.fetchSubscanData<GeneralSubscanDailyListData>(
-      "https://joystream.api.subscan.io/api/scan/daily",
-      {
-        category: "AccountHolderTotal",
-        start: getYearMonthDayString(getDateWeeksAgo(1)),
-        format: "day",
-        end: getYearMonthDayString(new Date()),
-      }
-    );
-
     if (dailyAccountHolderData) {
       const numberOfAccountHoldersAWeekAgo = dailyAccountHolderData.list[0].total;
 
@@ -761,16 +771,6 @@ export class DashboardAPI {
           numberOfAccountHoldersAWeekAgo) *
         100;
     }
-
-    const dailyActiveAccountData = await this.fetchSubscanData<GeneralSubscanDailyListData>(
-      "https://joystream.api.subscan.io/api/scan/daily",
-      {
-        category: "ActiveAccount",
-        start: getYearMonthDayString(getDateWeeksAgo(1)),
-        format: "day",
-        end: getYearMonthDayString(new Date()),
-      }
-    );
 
     if (dailyActiveAccountData) {
       const numberOfActiveAccountsAWeekAgo = dailyActiveAccountData.list[0].total;
