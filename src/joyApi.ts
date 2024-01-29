@@ -1,6 +1,6 @@
 import '@joystream/types'
 import { WsProvider, ApiPromise } from "@polkadot/api";
-import { Balance, ChainProperties, Hash } from "@polkadot/types/interfaces";
+import { ChainProperties, Hash } from "@polkadot/types/interfaces";
 import { config } from "dotenv";
 import BN from "bn.js";
 import fetch from "cross-fetch"
@@ -10,7 +10,6 @@ import {
   PalletReferendumReferendumStage as ReferendumStage,
   PalletCouncilCouncilStageUpdate as CouncilStageUpdate,
   PalletVestingVestingInfo,
-  PalletStakingExposure,
 } from '@polkadot/types/lookup'
 import { Vec } from '@polkadot/types';
 import { HexString } from '@polkadot/util/types';

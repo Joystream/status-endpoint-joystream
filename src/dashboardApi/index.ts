@@ -2,15 +2,7 @@ import assert from "assert";
 import { config } from "dotenv";
 import { Octokit } from "octokit";
 import axios from "axios";
-import {
-  REST,
-  Routes,
-  GuildScheduledEvent,
-  User,
-  GuildMember,
-  Channel,
-  GuildChannel,
-} from "discord.js";
+import { REST, Routes, GuildChannel } from "discord.js";
 
 import { JoyApi } from "../joyApi";
 
@@ -1136,16 +1128,21 @@ export class DashboardAPI {
 
   async getFullData() {
     await this.joyAPI.init;
-    // TODO: Fetching engineering data uses 383 API units. Plan this into cron job timing.
-    const tokenData = await this.getTokenData();
-    console.log(tokenData);
-    // const engineeringData = await this.getEngineeringData();
-    // console.log(engineeringData);
-    // const tractionData = await this.getTractionData();
-    // console.log(tractionData);
-    // const communityData = await this.getCommunityData();
-    // console.log(JSON.stringify(communityData, null, 2));
-    // const teamData = await this.getTeamData();
-    // console.log(JSON.stringify(teamData, null, 2));
+
+    const [token, traction, engineering, community, team] = await Promise.all([
+      this.getTokenData(),
+      this.getTractionData(),
+      this.getEngineeringData(),
+      this.getCommunityData(),
+      this.getTeamData(),
+    ]);
+
+    return {
+      token,
+      traction,
+      engineering,
+      community,
+      team,
+    };
   }
 }

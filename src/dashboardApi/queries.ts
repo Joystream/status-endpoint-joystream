@@ -100,7 +100,7 @@ export const TEAM_QN_QUERIES = {
       cycleId
       endedAtTime
     }
-    councilMembers(limit: 3, orderBy: updatedAt_DESC) {
+    councilMembers(limit: 3, orderBy: createdAt_DESC) {
       member {
         handle
         metadata {
