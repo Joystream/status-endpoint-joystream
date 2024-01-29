@@ -106,6 +106,8 @@ const AMOUNT_OF_JOY_BURNED_TILL_JAN_2024 = 35_000_000;
 // https://pioneerapp.xyz/#/forum/thread/632?post=5299, https://pioneerapp.xyz/#/proposals/preview/717
 const AMOUNT_OF_JOY_MINTED_FOR_LIQUIDITY_PROVISION = 1_560_000;
 
+const DISCRETIONARY_PAYMENT_EXCLUSION_KEYWORDS = ["crew3", "zealy"];
+
 const filterAddressesByDistributionInterest = (
   addresses: SubscanAccountsList,
   joyPrice: number,
@@ -306,10 +308,15 @@ export class DashboardAPI {
     const cumulativeDiscretionaryPaymentAmount =
       hapiToJoy(
         Number(
-          qnMintingData.budgetSpendingEvents.reduce(
-            (acc, event) => acc + BigInt(event.amount),
-            BigInt(0)
-          )
+          qnMintingData.budgetSpendingEvents.reduce((acc, event) => {
+            for (let keyword of DISCRETIONARY_PAYMENT_EXCLUSION_KEYWORDS) {
+              if (event.rationale?.toLowerCase().includes(keyword)) {
+                return acc;
+              }
+            }
+
+            return acc + BigInt(event.amount);
+          }, BigInt(0))
         )
       ) -
       AMOUNT_OF_JOY_BURNED_TILL_JAN_2024 -

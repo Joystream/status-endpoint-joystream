@@ -203,6 +203,7 @@ export type TokenQNMintingData = {
   budgetSpendingEvents: Array<{
     createdAt: string;
     amount: string;
+    rationale: string | null;
   }>;
 };
 

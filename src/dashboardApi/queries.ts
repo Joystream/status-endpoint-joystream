@@ -34,6 +34,7 @@ export const TOKEN_MINTING_QN_QUERY = `{
   budgetSpendingEvents(limit: 1000000, where: { createdAt_gte: "${TRACTION_DATA_INITIAL_DATE_ONE_YEAR_AGO.toISOString()}" }) {
     createdAt
     amount
+    rationale
   }
 }`;
 
