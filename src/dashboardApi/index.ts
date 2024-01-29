@@ -241,11 +241,23 @@ export class DashboardAPI {
   }
 
   async getTokenMintingData() {
+    let workerMintingPercentage = null;
+    let creatorPayoutsMintingPercentage = null;
+    let spendingProposalsMintingPercentage = null;
+    let validatorMintingPercentage = null;
+
     const qnMintingData = await this.joyAPI.qnQuery<TokenQNMintingData>(TOKEN_MINTING_QN_QUERY);
     const validatorRewards = await this.joyAPI.getYearOfValidatorRewards();
 
     // TODO: Update this
-    if (!qnMintingData) return null;
+    if (!qnMintingData) {
+      return {
+        workerMintingPercentage,
+        creatorPayoutsMintingPercentage,
+        spendingProposalsMintingPercentage,
+        validatorMintingPercentage,
+      };
+    }
 
     const cumulativeCreatorPayoutsAmount = hapiToJoy(
       Number(
@@ -333,11 +345,16 @@ export class DashboardAPI {
       cumulativeTotalWorkersRewardsAmount +
       validatorRewards;
 
+    workerMintingPercentage = (cumulativeTotalWorkersRewardsAmount / totalMinting) * 100;
+    creatorPayoutsMintingPercentage = (cumulativeCreatorPayoutsAmount / totalMinting) * 100;
+    spendingProposalsMintingPercentage = (cumulativeSpendingProposalsAmount / totalMinting) * 100;
+    validatorMintingPercentage = (validatorRewards / totalMinting) * 100;
+
     return {
-      workerMintingPercentage: (cumulativeTotalWorkersRewardsAmount / totalMinting) * 100,
-      creatorPayoutsMintingPercentage: (cumulativeCreatorPayoutsAmount / totalMinting) * 100,
-      spendingProposalsMintingPercentage: (cumulativeSpendingProposalsAmount / totalMinting) * 100,
-      validatorMintingPercentage: (validatorRewards / totalMinting) * 100,
+      workerMintingPercentage,
+      creatorPayoutsMintingPercentage,
+      spendingProposalsMintingPercentage,
+      validatorMintingPercentage,
     };
   }
 
