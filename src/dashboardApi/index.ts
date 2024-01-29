@@ -237,7 +237,7 @@ export class DashboardAPI {
     let spendingProposalsMintingPercentage = null;
     let validatorMintingPercentage = null;
 
-    const qnMintingData = await this.joyAPI.qnQuery<TokenQNMintingData>(TOKEN_MINTING_QN_QUERY);
+    const qnMintingData = await this.joyAPI.qnQuery<TokenQNMintingData>(TOKEN_MINTING_QN_QUERY());
     const validatorRewards = await this.joyAPI.getYearOfValidatorRewards();
 
     if (!qnMintingData) {
@@ -502,8 +502,9 @@ export class DashboardAPI {
     if (uniqueTokenData) {
       const { inflation, bonded_locked_balance } = uniqueTokenData.detail.JOY;
 
-      joyAnnualInflation = inflation;
-      percentSupplyStakedForValidation = (Number(bonded_locked_balance) / totalSupply) * 100;
+      joyAnnualInflation = Number(inflation);
+      percentSupplyStakedForValidation =
+        (hapiToJoy(Number(bonded_locked_balance)) / totalSupply) * 100;
     }
 
     if (joystreamAddresses) {
@@ -618,10 +619,10 @@ export class DashboardAPI {
       commentsAndReactionsData,
       nftBoughtEventsData,
     ] = await Promise.all([
-      this.joyAPI.qnQuery<ChannelsQueryData>(TRACTION_QN_QUERIES.CHANNELS),
+      this.joyAPI.qnQuery<ChannelsQueryData>(TRACTION_QN_QUERIES.CHANNELS()),
       this.joyAPI.qnQuery<VideosConnectionData>(TRACTION_QN_QUERIES.VIDEOS_CONNECTION),
       paginatedQNFetch<GenericQNTractionItem>(TRACTION_QN_QUERIES.VIDEOS),
-      this.joyAPI.qnQuery<CommentsAndReactionsData>(TRACTION_QN_QUERIES.COMMENTS_AND_REACTIONS),
+      this.joyAPI.qnQuery<CommentsAndReactionsData>(TRACTION_QN_QUERIES.COMMENTS_AND_REACTIONS()),
       this.joyAPI.qnQuery<NFTBoughtEventsData>(TRACTION_QN_QUERIES.NFT_BOUGHT_EVENTS),
     ]);
 
@@ -1002,7 +1003,7 @@ export class DashboardAPI {
             .map((w) => ({
               handle: w.membership.handle,
               isLead: w.isLead,
-              avatar: w.membership.metadata.avatar?.avatarUri,
+              avatar: w.membership.metadata.avatar?.avatarUri ?? null,
             })),
           budget: hapiToJoy(Number(wg.budget)),
         };

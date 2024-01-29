@@ -99,7 +99,7 @@ export type TeamWorkingGroupQNData = {
 
 export type TeamWorkingGroupResult = {
   [key: string]: {
-    workers: Array<{ handle: string; isLead: boolean; avatar?: string }>;
+    workers: Array<{ handle: string; isLead: boolean; avatar: string | null }>;
     budget: number;
   };
 };
