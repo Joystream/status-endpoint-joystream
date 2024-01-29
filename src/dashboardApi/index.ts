@@ -99,7 +99,6 @@ const ADDRESS_DISTRIBUTION_INTEREST_POINTS_IN_JOY = (joyPrice: number) => [
 ];
 
 // Since there's no way of tracking the amount of tokens burned, we have to hardcode these values.
-// TODO: Update when it substantially strays from this value.
 const AMOUNT_OF_JOY_BURNED_TILL_JAN_2024 = 35_000_000;
 
 // Sources for this:
@@ -249,7 +248,6 @@ export class DashboardAPI {
     const qnMintingData = await this.joyAPI.qnQuery<TokenQNMintingData>(TOKEN_MINTING_QN_QUERY);
     const validatorRewards = await this.joyAPI.getYearOfValidatorRewards();
 
-    // TODO: Update this
     if (!qnMintingData) {
       return {
         workerMintingPercentage,
