@@ -45,6 +45,8 @@ import {
   TimestampToValueTupleArray,
   SubscanAccountsData,
   SubscanAccountsList,
+  ExchangeSpecificData,
+  CoingGeckoExchangeData,
 } from "./types";
 import { TEAM_QN_QUERIES, TOKEN_MINTING_QN_QUERY, TRACTION_QN_QUERIES } from "./queries";
 import {
@@ -405,6 +407,7 @@ export class DashboardAPI {
     let volume = null;
     let volumeWeeklyChange = null;
     let longTermVolumeData: TimestampToValueTupleArray = [];
+    let exchanges: ExchangeSpecificData | null = null;
     let joyAnnualInflation = null;
     let percentSupplyStakedForValidation = null;
     let roi = null;
@@ -451,6 +454,7 @@ export class DashboardAPI {
       dailyShortTermTokenData,
       circulatingSupply,
       totalSupply,
+      exchangeData,
       tokenMintingData,
       uniqueTokenData,
       apr,
@@ -468,6 +472,9 @@ export class DashboardAPI {
       }),
       this.joyAPI.calculateCirculatingSupply(),
       this.joyAPI.totalIssuanceInJOY(),
+      await fetchGenericAPIData<CoingGeckoExchangeData>({
+        url: `https://api.coingecko.com/api/v3/coins/joystream/tickers?depth=true&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
+      }),
       this.getTokenMintingData(),
       this.fetchSubscanData<SubscanUniqueTokenData>(
         "https://joystream.api.subscan.io/api/scan/token/unique_id",
@@ -497,6 +504,18 @@ export class DashboardAPI {
 
       marketCap = price ? circulatingSupply * price : null;
       marketCapWeeklyChange = (((marketCap ?? 0) - lastWeekMarketCap) / lastWeekMarketCap) * 100;
+    }
+
+    if (exchangeData) {
+      exchanges = exchangeData.tickers.reduce((acc, curr) => {
+        acc[curr.market.identifier] = {
+          volume: curr.converted_volume.usd,
+          plus2PercentDepth: curr.cost_to_move_up_usd,
+          minus2PercentDepth: curr.cost_to_move_down_usd,
+        };
+
+        return acc;
+      }, {} as ExchangeSpecificData);
     }
 
     if (uniqueTokenData) {
@@ -583,6 +602,7 @@ export class DashboardAPI {
       volume,
       volumeWeeklyChange,
       longTermVolumeData,
+      exchanges,
       circulatingSupply,
       fullyDilutedValue: price ? totalSupply * price : null,
       totalSupply,

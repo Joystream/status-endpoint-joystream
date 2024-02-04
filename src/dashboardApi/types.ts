@@ -223,3 +223,24 @@ export type SubscanAccountsData = {
   count: number;
   list: SubscanAccountsList;
 };
+
+export type CoingGeckoExchangeData = {
+  tickers: Array<{
+    market: {
+      identifier: "mxc" | "bitget" | "gate" | "bitmart";
+    };
+    cost_to_move_up_usd: number;
+    cost_to_move_down_usd: number;
+    converted_volume: {
+      usd: number;
+    };
+  }>;
+};
+
+export type ExchangeSpecificData = {
+  [key: string]: {
+    volume: number;
+    plus2PercentDepth: number;
+    minus2PercentDepth: number;
+  };
+};
