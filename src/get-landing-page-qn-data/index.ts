@@ -1,11 +1,10 @@
 import axios from "axios";
 import { JoyApi } from "../joyApi";
-import { landingPageQueries, getStorageBag } from "./query";
+import { landingPageQueries } from "./query";
 import {
   NFT,
   Proposal,
   ChannelPaymentEvent,
-  StorageBag,
   ProposalParameter,
   GenericObject,
   SimpleChannelPaymentEvent,
@@ -111,45 +110,6 @@ const incorporateProposalExpiryDate = (proposals: Array<Proposal>) => {
   );
 };
 
-const findAllValidPotentialAssets = async (storageBag?: StorageBag, assetId?: string) => {
-  if (!storageBag || !assetId) return [];
-
-  const resultArr = [];
-
-  for (let { operators } of storageBag.distributionBuckets) {
-    if (operators.length === 0) continue;
-
-    const nodeEndpoint = operators[0]?.metadata?.nodeEndpoint;
-    const url = `${nodeEndpoint}api/v1/assets/${assetId}`;
-
-    try {
-      await axios.head(url, { timeout: 2500 });
-
-      resultArr.push(url);
-    } catch (e: unknown) {
-      // Axios throws an error if the response is not 2xx. We can use this
-      // and catch the error to filter out payouts with invalid images.
-      continue;
-    }
-  }
-
-  return resultArr;
-};
-
-const findStorageBagAndAssets = async (storageBagId?: string, avatarPhotoId?: string) => {
-  if (!storageBagId || !avatarPhotoId) return [];
-
-  const data = await api.qnQuery<{
-    storageBags: Array<StorageBag>;
-  }>(getStorageBag(storageBagId));
-
-  if (!data) return [];
-
-  const storageBag = data.storageBags[0];
-
-  return await findAllValidPotentialAssets(storageBag, avatarPhotoId);
-};
-
 const parseCarouselData = async (
   response: {
     ownedNfts: Array<NFT>;
@@ -165,18 +125,13 @@ const parseCarouselData = async (
         lastSaleDate,
         lastSalePrice,
         creatorChannel: { title: channelName },
-        video: {
-          id: videoId,
-          title: nftTitle,
-          thumbnailPhotoId,
-          thumbnailPhoto: { storageBag },
-        },
+        video: { id: videoId, title: nftTitle },
       }) => ({
         nftTitle,
         channelName,
         joyAmount: Math.round(Number(lastSalePrice) / 10_000_000_000).toString(),
         lastSaleDate,
-        imageUrl: await findAllValidPotentialAssets(storageBag, thumbnailPhotoId),
+        imageUrl: [`https://assets.joyutils.org/video/${videoId}/thumbnail`],
         videoUrl: `https://gleev.xyz/video/${videoId}`,
       })
     )
@@ -210,7 +165,7 @@ const parseCarouselData = async (
         async ({ amount, payeeChannel: { id: channelId, avatarPhoto, title }, createdAt }) => ({
           joyAmount: Math.round(Number(amount) / 10_000_000_000).toString(),
           createdAt,
-          imageUrl: await findAllValidPotentialAssets(avatarPhoto?.storageBag, avatarPhoto?.id),
+          imageUrl: [`https://assets.joyutils.org/channel/${channelId}/avatar`],
           channelName: title,
           channelUrl: `https://gleev.xyz/channel/${channelId}`,
         })
@@ -225,7 +180,6 @@ const parseCarouselData = async (
     {
       id: string;
       title: string;
-      avatarPhoto: { storageBag?: { id: string }; id?: string };
       amount: number;
     }
   > = {};
@@ -240,7 +194,6 @@ const parseCarouselData = async (
     creatorsObject[channelPaymentMadeEvent.payeeChannel.id] = {
       id: channelPaymentMadeEvent.payeeChannel.id,
       title: channelPaymentMadeEvent.payeeChannel.title,
-      avatarPhoto: channelPaymentMadeEvent.payeeChannel.avatarPhoto,
       amount: Number(channelPaymentMadeEvent.amount),
     };
   }
@@ -249,10 +202,10 @@ const parseCarouselData = async (
     Object.values(creatorsObject)
       .sort((a, b) => b.amount - a.amount)
       .slice(0, NUMBER_OF_ITEMS_TO_FETCH_WITH_BUFFER)
-      .map(async ({ amount, avatarPhoto, id, ...rest }) => ({
+      .map(async ({ amount, id, ...rest }) => ({
         followsNum: orionChannels.find((channel) => channel.id === id)?.followsNum ?? 0,
         amount: Math.round(Number(amount) / 10_000_000_000).toString(),
-        imageUrl: await findStorageBagAndAssets(avatarPhoto?.storageBag?.id, avatarPhoto?.id),
+        imageUrl: [`https://assets.joyutils.org/channel/${id}/avatar`],
         channelUrl: `https://gleev.xyz/channel/${id}`,
         ...rest,
       }))

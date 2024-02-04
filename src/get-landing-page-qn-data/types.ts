@@ -1,9 +1,3 @@
-type StorageBag = {
-  distributionBuckets: Array<{
-    operators: Array<{ metadata: { nodeEndpoint: string } }>;
-  }>;
-};
-
 type NFT = {
   lastSaleDate: string;
   lastSalePrice: string;
@@ -14,9 +8,6 @@ type NFT = {
     id: string;
     title: string;
     thumbnailPhotoId: string;
-    thumbnailPhoto: {
-      storageBag: StorageBag;
-    };
   };
 };
 
@@ -49,7 +40,6 @@ type ChannelPaymentEvent = {
     title: string;
     avatarPhoto: {
       id: string;
-      storageBag: StorageBag;
     };
   };
 };
@@ -96,7 +86,6 @@ type OrionChannelFollows = {
 };
 
 export {
-  StorageBag,
   NFT,
   Proposal,
   ChannelPaymentEvent,

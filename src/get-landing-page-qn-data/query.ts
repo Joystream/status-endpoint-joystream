@@ -67,17 +67,6 @@ export const landingPageQueries = {
         id
         title
         thumbnailPhotoId
-        thumbnailPhoto {
-          storageBag {
-            distributionBuckets {
-              operators {
-                metadata {
-                  nodeEndpoint
-                }
-              }
-            }
-          }
-        }
       }
     },
     proposals(limit: ${numberOfCarouselItems}, orderBy: statusSetAtTime_DESC) {
@@ -109,16 +98,7 @@ export const landingPageQueries = {
         id
         title
         avatarPhoto {
-          id,
-          storageBag {
-            distributionBuckets {
-              operators {
-                metadata {
-                  nodeEndpoint
-                }
-              }
-            }
-          }
+          id
         }
       }
     }
@@ -135,17 +115,3 @@ export const landingPageQueries = {
     }
   }`,
 };
-
-export const getStorageBag = (storageBagId: string) => `
- {
-  storageBags(where: { id_eq: "${storageBagId}" }) {
-    distributionBuckets {
-      operators {
-        metadata {
-          nodeEndpoint
-        }
-      }
-    }
-  }
- }
-`;
