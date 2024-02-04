@@ -11,6 +11,7 @@ import {
   OrionChannelGenericObject,
   OrionChannelFollows,
 } from "./types";
+import { getDateWeeksAgo, getTomorrowsDate, getYearMonthDayString } from "../utils";
 
 if (process.env.ORION_OPERATOR_SECRET === undefined) {
   throw new Error("Missing QUERY_NODE in .env!");
@@ -295,20 +296,14 @@ const parseAuxiliaryData = (response: {
 };
 
 const getPriceData = async () => {
-  const endDate = new Date();
-  const startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-  const end = endDate.toISOString().split("T")[0];
-  const start = startDate.toISOString().split("T")[0];
-
   try {
     const priceResponse = await axios.post(
       `https://joystream.api.subscan.io/api/scan/price/history`,
       {
         currency: "string",
-        end,
+        end: getYearMonthDayString(getTomorrowsDate()),
         format: "hour",
-        start,
+        start: getYearMonthDayString(getDateWeeksAgo(1)),
       },
       {
         headers: {
