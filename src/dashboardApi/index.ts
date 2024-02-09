@@ -101,6 +101,18 @@ const AMOUNT_OF_JOY_MINTED_FOR_LIQUIDITY_PROVISION = 1_560_000;
 
 const DISCRETIONARY_PAYMENT_EXCLUSION_KEYWORDS = ["crew3", "zealy"];
 
+const WORKING_GROUP_NAMES = {
+  operationsWorkingGroupBeta: "Human Resources",
+  contentWorkingGroup: "Content",
+  operationsWorkingGroupAlpha: "Builders",
+  distributionWorkingGroup: "Distribution",
+  storageWorkingGroup: "Storage",
+  operationsWorkingGroupGamma: "Marketing",
+  forumWorkingGroup: "Forum",
+  membershipWorkingGroup: "Membership",
+  appWorkingGroup: "Apps",
+};
+
 const filterAddressesByDistributionInterest = (
   addresses: SubscanAccountsList,
   joyPrice: number,
@@ -934,7 +946,7 @@ export class DashboardAPI {
           name: event.name,
           scheduledStartTime: event.scheduled_start_time,
           description: event.description,
-          location: await this.getDiscordEventLocation(event.channel_id),
+          location: event.channel_id ? await this.getDiscordEventLocation(event.channel_id) : null,
         }))
       );
     }
@@ -1012,12 +1024,14 @@ export class DashboardAPI {
         handle: member.handle,
         socials: member.metadata.externalResources,
         timesServed: member.councilMembers.length,
+        link: `https://pioneerapp.xyz/#/members/${member.id}`,
       }));
     }
 
     if (workersData) {
       workingGroups = workersData.workingGroups.reduce((acc, wg) => {
         acc[wg.id] = {
+          name: WORKING_GROUP_NAMES[wg.id as keyof typeof WORKING_GROUP_NAMES],
           workers: wg.workers
             .filter((w) => w.isActive)
             .map((w) => ({

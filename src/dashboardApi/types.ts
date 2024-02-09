@@ -67,6 +67,7 @@ export type TeamCouncilQNData = {
   ];
   councilMembers: Array<{
     member: {
+      id: string;
       handle: string;
       metadata: {
         avatar: Avatar;
@@ -99,6 +100,7 @@ export type TeamWorkingGroupQNData = {
 
 export type TeamWorkingGroupResult = {
   [key: string]: {
+    name: string;
     workers: Array<{ handle: string; isLead: boolean; avatar: string | null }>;
     budget: number;
   };
@@ -143,7 +145,7 @@ export type TelegramAPIResult = {
 
 export type DiscordAPIEvent = {
   id: string;
-  channel_id: string;
+  channel_id: string | null;
   name: string;
   scheduled_start_time: string;
   description: string;
@@ -155,7 +157,7 @@ export type DiscordEvent = {
   name: string;
   scheduledStartTime: string;
   description: string;
-  location: string;
+  location: string | null;
 };
 
 export type DiscordUser = {

@@ -108,6 +108,7 @@ export const TEAM_QN_QUERIES = {
     }
     councilMembers(limit: 3, orderBy: createdAt_DESC) {
       member {
+        id
         handle
         metadata {
           avatar {
