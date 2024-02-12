@@ -13,6 +13,8 @@ export const calculateMinutesUntilNextInterval = (minutes: number) => {
 
 export const perbillToPercent = (perbill: BN) => perbill.toNumber() / 10 ** 7;
 
+export const percentToPerbill = (percent: number) => new BN(percent * 10 ** 7);
+
 export const getUnixTimestampFromDate = (date: Date) => {
   return Math.floor(date.getTime() / 1000);
 };

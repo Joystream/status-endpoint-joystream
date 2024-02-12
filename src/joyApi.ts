@@ -13,7 +13,7 @@ import {
 } from '@polkadot/types/lookup'
 import { Vec } from '@polkadot/types';
 import { HexString } from '@polkadot/util/types';
-import { perbillToPercent } from './utils';
+import { perbillToPercent, percentToPerbill } from './utils';
 
 // Init .env config
 config();
@@ -580,16 +580,37 @@ export class JoyApi {
   async APR() {
     const activeValidatorAddresses = await this.api.query.session.validators();
     const validators = await this.api.query.staking.validators.entries();
-    const activeValidators = validators.filter(([key, _]) => activeValidatorAddresses.includes(key.args[0].toString()));
+    const activeValidators = validators.filter(([key, _]) =>
+      activeValidatorAddresses.includes(key.args[0].toString())
+    );
 
     const activeEra = await this.api.query.staking.activeEra();
     const erasRewards = await this.api.derive.staking.erasRewards();
 
-    const averageRewardInAnEra = erasRewards.reduce((acc, { eraReward }) => acc.add(eraReward), new BN(0)).divn(erasRewards.length);
-    const totalStakeInCurrentEra = (await this.api.query.staking.erasTotalStake(activeEra.unwrap().index.toNumber())).toBn();
-    const averageCommission = activeValidators.reduce((acc, validator) => acc.add(validator[1].commission.toBn()), new BN(0));
+    // Average reward in an era for one validator.
+    const averageRewardInAnEra = erasRewards
+      .reduce((acc, { eraReward }) => acc.add(eraReward), new BN(0))
+      .divn(erasRewards.length)
+      .divn(activeValidators.length);
 
-    const apr = perbillToPercent(averageRewardInAnEra.muln(ERAS_PER_YEAR).mul(averageCommission).div(totalStakeInCurrentEra).divn(activeValidators.length));
+    // Average total stake for one validator
+    const averageTotalStakeInCurrentEra = (
+      await this.api.query.staking.erasTotalStake(activeEra.unwrap().index.toNumber())
+    )
+      .toBn()
+      .divn(activeValidators.length);
+
+    // Average commission for one validator.
+    const averageCommission = activeValidators
+      .reduce((acc, validator) => acc.add(validator[1].commission.toBn()), new BN(0))
+      .divn(activeValidators.length);
+
+    const apr = perbillToPercent(
+      averageRewardInAnEra
+        .muln(ERAS_PER_YEAR)
+        .mul(percentToPerbill(100).sub(averageCommission))
+        .div(averageTotalStakeInCurrentEra)
+    );
 
     return apr;
   }
