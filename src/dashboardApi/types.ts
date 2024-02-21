@@ -25,7 +25,6 @@ export type GenericQNTractionItem = {
 };
 
 export type ChannelsQueryData = {
-  channelsConnection: GenericQNTractionConnection;
   channels: GenericQNTractionItem[];
 };
 

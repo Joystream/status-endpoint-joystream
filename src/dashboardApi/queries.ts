@@ -36,12 +36,7 @@ export const TOKEN_MINTING_QN_QUERY = () => `{
 
 export const TRACTION_QN_QUERIES = {
   CHANNELS: () => `{
-    channelsConnection {
-      totalCount
-    }
-    channels(limit: 1000000, where: { createdAt_gt: "${getDateMonthsAgo(
-      6
-    ).toISOString()}" }, orderBy: createdAt_ASC) {
+    channels(limit: 1000000, where: { totalVideosCreated_gt: 0 }, orderBy: createdAt_ASC) {
       createdAt
     }
   }

@@ -138,6 +138,10 @@ export const getNumberOfQNItemsInLastWeek = (data: { createdAt: string }[]) => {
   return data.filter((item) => new Date(item.createdAt) > lastWeek).length;
 };
 
+export const getQNItemsSinceDate = (data: { createdAt: string }[], date: Date) => {
+  return data.filter((item) => new Date(item.createdAt) > date);
+};
+
 export const getTotalPriceOfQNItemsInLastWeek = (data: { createdAt: string; price: string }[]) => {
   const lastWeek = getDateWeeksAgo(1);
 

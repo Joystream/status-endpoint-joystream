@@ -10,6 +10,7 @@ import {
   fetchGenericAPIData,
   getNumberOfGithubItemsFromPageNumbers,
   getNumberOfQNItemsInLastWeek,
+  getQNItemsSinceDate,
   getTotalPriceOfQNItemsInLastWeek,
   getTweetscoutLevel,
   hapiToJoy,
@@ -696,16 +697,15 @@ export class DashboardAPI {
 
     if (channelsData) {
       const {
-        channelsConnection: { totalCount },
         channels,
       } = channelsData;
 
-      const numberOfChannelsAWeekAgo = totalCount - getNumberOfQNItemsInLastWeek(channels);
+      const numberOfChannelsAWeekAgo = channels.length - getNumberOfQNItemsInLastWeek(channels);
 
-      totalNumberOfChannels = totalCount;
+      totalNumberOfChannels = channels.length;
       totalNumberOfChannelsWeeklyChange =
         ((totalNumberOfChannels - numberOfChannelsAWeekAgo) / numberOfChannelsAWeekAgo) * 100;
-      weeklyChannelData = separateQNDataByWeek(channels);
+      weeklyChannelData = separateQNDataByWeek(getQNItemsSinceDate(channels, getDateMonthsAgo(6)));
     }
 
     if (videosCountData && videosData) {
@@ -1142,7 +1142,7 @@ export class DashboardAPI {
     const topGithubContributors = await Promise.all(
       Object.values(githubContributors)
         .sort((a, b) => b.numberOfCommits - a.numberOfCommits)
-        .slice(0, 21)
+        .slice(0, 33)
         .filter((contributor) => contributor.id !== "actions-user")
         .map(async (contributor) => ({
           ...contributor,
@@ -1158,6 +1158,7 @@ export class DashboardAPI {
       totalNumberOfCommitsThisWeek,
       numberOfOpenIssues: totalNumberOfOpenIssues,
       numberOfOpenPRs: totalNumberOfOpenPRs,
+      totalNumberOfContributors: Object.keys(githubContributors).length,
       contributors: topGithubContributors,
       commits: commitData,
     };
