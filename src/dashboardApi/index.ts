@@ -468,6 +468,7 @@ export class DashboardAPI {
       totalSupply,
       exchangeData,
       tokenMintingData,
+      inflation,
       uniqueTokenData,
       apr,
       joystreamAddresses,
@@ -488,6 +489,7 @@ export class DashboardAPI {
         url: `https://api.coingecko.com/api/v3/coins/joystream/tickers?depth=true&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
       }),
       this.getTokenMintingData(),
+      this.joyAPI.getInflationPercentValue(),
       this.fetchSubscanData<SubscanUniqueTokenData>(
         "https://joystream.api.subscan.io/api/scan/token/unique_id",
         undefined,
@@ -531,9 +533,9 @@ export class DashboardAPI {
     }
 
     if (uniqueTokenData) {
-      const { inflation, bonded_locked_balance } = uniqueTokenData.detail.JOY;
+      const { bonded_locked_balance } = uniqueTokenData.detail.JOY;
 
-      joyAnnualInflation = Number(inflation);
+      joyAnnualInflation = inflation;
       percentSupplyStakedForValidation =
         (hapiToJoy(Number(bonded_locked_balance)) / totalSupply) * 100;
     }

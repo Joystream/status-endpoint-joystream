@@ -615,6 +615,20 @@ export class JoyApi {
     return apr;
   }
 
+  async getInflationPercentValue () {
+    const finalizedHeadHash = await this.finalizedHash();
+    const { number: blockNumber } = await this.api.rpc.chain.getHeader(`${finalizedHeadHash}`);
+    const currentBlock = blockNumber.toBn();
+
+    // Calculate block for exactly 1 year ago
+    const blockHashAYearAgo = await this.api.rpc.chain.getBlockHash(currentBlock.subn((365 * 24 * 60 * 60) / 6));
+
+    const totalSupplyAYearAgo = await this.totalIssuanceInJOY(blockHashAYearAgo);
+    const totalSupply = await this.totalIssuanceInJOY();
+
+    return ((totalSupply - totalSupplyAYearAgo) / totalSupplyAYearAgo) * 100;
+  }
+
   protected async fetchNetworkStatus(): Promise<NetworkStatus> {
     const [
       [
