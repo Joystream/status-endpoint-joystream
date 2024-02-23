@@ -48,6 +48,8 @@ import {
   SubscanAccountsList,
   ExchangeSpecificData,
   CoingGeckoExchangeData,
+  FDVs,
+  CoinGeckoMarketsData,
 } from "./types";
 import { TEAM_QN_QUERIES, TOKEN_MINTING_QN_QUERY, TRACTION_QN_QUERIES } from "./queries";
 import {
@@ -421,20 +423,26 @@ export class DashboardAPI {
     let volumeWeeklyChange = null;
     let longTermVolumeData: TimestampToValueTupleArray = [];
     let exchanges: ExchangeSpecificData | null = null;
+    let fdvs: FDVs | null = null;
     let joyAnnualInflation = null;
     let percentSupplyStakedForValidation = null;
     let roi = null;
     let supplyDistribution = null;
 
-    const hourlySixMonthPriceData = await this.fetchSubscanData<SubscanPriceHistoryListData>(
-      "https://joystream.api.subscan.io/api/scan/price/history",
-      {
-        currency: "string",
-        start: getYearMonthDayString(getDateMonthsAgo(6)),
-        format: "hour",
-        end: getYearMonthDayString(getTomorrowsDate()),
-      }
-    );
+    const [hourlySixMonthPriceData, marketsData] = await Promise.all([
+      this.fetchSubscanData<SubscanPriceHistoryListData>(
+        "https://joystream.api.subscan.io/api/scan/price/history",
+        {
+          currency: "string",
+          start: getYearMonthDayString(getDateMonthsAgo(6)),
+          format: "hour",
+          end: getYearMonthDayString(getTomorrowsDate()),
+        }
+      ),
+      await fetchGenericAPIData<CoinGeckoMarketsData>({
+        url: `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=lbry-credits,deso,theta-token&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
+      }),
+    ]);
 
     if (hourlySixMonthPriceData) {
       const { list: prices } = hourlySixMonthPriceData;
@@ -533,6 +541,17 @@ export class DashboardAPI {
       }, {} as ExchangeSpecificData);
     }
 
+    if (marketsData) {
+      fdvs = marketsData.reduce((acc, curr) => {
+        acc[curr.symbol] = curr.fully_diluted_valuation;
+
+        return acc;
+      }, {} as FDVs);
+
+      // This is hardcoded for now as Rumble is a publicly traded company compared to other projects.
+      fdvs.rum = 2_020_000_000;
+    }
+
     if (uniqueTokenData) {
       const { bonded_locked_balance } = uniqueTokenData.detail.JOY;
 
@@ -618,6 +637,7 @@ export class DashboardAPI {
       volumeWeeklyChange,
       longTermVolumeData,
       exchanges,
+      fdvs,
       circulatingSupply,
       fullyDilutedValue: price ? totalSupply * price : null,
       totalSupply,
@@ -696,9 +716,7 @@ export class DashboardAPI {
     ]);
 
     if (channelsData) {
-      const {
-        channels,
-      } = channelsData;
+      const { channels } = channelsData;
 
       const numberOfChannelsAWeekAgo = channels.length - getNumberOfQNItemsInLastWeek(channels);
 

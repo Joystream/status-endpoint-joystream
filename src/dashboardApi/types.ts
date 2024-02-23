@@ -245,3 +245,12 @@ export type ExchangeSpecificData = {
     minus2PercentDepth: number;
   };
 };
+
+export type CoinGeckoMarketsData = Array<{
+  symbol: "theta" | "deso" | "lbry";
+  fully_diluted_valuation: number;
+}>;
+
+export type FDVs = {
+  [key: string]: number;
+};
