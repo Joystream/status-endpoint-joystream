@@ -116,6 +116,20 @@ const WORKING_GROUP_NAMES = {
   appWorkingGroup: "Apps",
 };
 
+const GITHUB_REPOS_TO_IGNORE = [
+  "cosmos-sdk",
+  "Web3-collaboration",
+  "substrate",
+  "polkadot-wiki",
+  "rust-on-raspberry-docker",
+  "warthog",
+  "substrate-telemetry",
+  "graphql-playground",
+  "typeorm",
+  "ss58-registry",
+  "wallet-connect",
+];
+
 const filterAddressesByDistributionInterest = (
   addresses: SubscanAccountsList,
   joyPrice: number,
@@ -1104,7 +1118,9 @@ export class DashboardAPI {
     ]);
 
     const reposInformation = await Promise.all(
-      repos.map((repo) => this.fetchRepoInformation(repo.name))
+      repos
+        .filter((repo) => !GITHUB_REPOS_TO_IGNORE.includes(repo.name))
+        .map((repo) => this.fetchRepoInformation(repo.name))
     );
 
     for (const repoInformation of reposInformation) {
@@ -1169,7 +1185,7 @@ export class DashboardAPI {
     );
 
     return {
-      numberOfRepositories: public_repos,
+      numberOfRepositories: public_repos - GITHUB_REPOS_TO_IGNORE.length,
       numberOfFollowers: followers,
       numberOfStars: totalNumberOfStars,
       numberOfCommits: totalNumberOfCommits,
