@@ -5,7 +5,6 @@ import cron from "node-cron";
 import path from "path";
 import fs from "fs";
 import { getStatus } from "./get-status";
-import { getBudgets } from "./get-budgets";
 import { log } from "./debug";
 import getLandingPageQNData from "./get-landing-page-qn-data";
 import getPrice from "./get-price";
@@ -39,13 +38,11 @@ const scheduleCronJob = async () => {
       circulatingSupplyData,
       totalSupplyData,
       price,
-      budgets,
       { nfts, proposals, payouts, creators, ...rest },
     ] = await Promise.all([
       getCirculatingSupply(),
       getTotalSupply(),
       getPrice(),
-      getBudgets(),
       getLandingPageQNData(),
     ]);
 
@@ -56,7 +53,6 @@ const scheduleCronJob = async () => {
           ...price,
           ...circulatingSupplyData,
           ...totalSupplyData,
-          budgets,
           carouselData: { nfts, proposals, payouts, creators },
           ...rest,
         },
@@ -114,12 +110,6 @@ app.get("/", cache("1 hour"), async (req, res) => {
   let status = await getStatus();
   res.setHeader("Content-Type", "application/json");
   res.send(status);
-});
-
-app.get("/budgets", cache("1 day"), async (req, res) => {
-  let budgets = await getBudgets();
-  res.setHeader("Content-Type", "application/json");
-  res.send(budgets);
 });
 
 app.get("/price", cache("10 minutes"), async (req, res) => {
