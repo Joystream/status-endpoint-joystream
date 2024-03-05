@@ -11,7 +11,6 @@ import getPrice from "./get-price";
 import getCirculatingSupply from "./get-circulating-supply";
 import { calculateMinutesUntilNextInterval } from "./utils";
 import getTotalSupply from "./get-total-supply";
-import getAddresses from "./get-addresses";
 import { DashboardAPI } from "./dashboardApi";
 
 const app = express();
@@ -21,8 +20,6 @@ const LANDING_PAGE_DATA_PATH = path.join(__dirname, "../landing-page-data.json")
 const CIRCULATING_SUPPLY_DATA_PATH = path.join(__dirname, "../circulating-supply-data.json");
 const TOTAL_SUPPLY_DATA_PATH = path.join(__dirname, "../total-supply-data.json");
 const DASHBOARD_DATA_PATH = path.join(__dirname, "../dashboard-data.json");
-const ADDRESSES_DATA_PATH = path.join(__dirname, "../addresses-data.json");
-const ADDRESS_UI_HTML = path.join(__dirname, "../public/address_ui.ejs");
 
 app.use(cors());
 app.use(express.json());
@@ -65,22 +62,9 @@ const scheduleCronJob = async () => {
   const fetchAndWriteSupplyData = async () => {
     const circulatingSupplyData = await getCirculatingSupply();
     const totalSupplyData = await getTotalSupply();
-    const { addresses } = await getAddresses();
 
     fs.writeFileSync(CIRCULATING_SUPPLY_DATA_PATH, JSON.stringify(circulatingSupplyData, null, 2));
     fs.writeFileSync(TOTAL_SUPPLY_DATA_PATH, JSON.stringify(totalSupplyData, null, 2));
-    fs.writeFileSync(
-      ADDRESSES_DATA_PATH,
-      JSON.stringify(
-        {
-          total_supply: totalSupplyData.totalSupply,
-          circulating_supply: circulatingSupplyData.circulatingSupply,
-          addresses,
-        },
-        null,
-        2
-      )
-    );
   };
 
   const fetchAndWriteDashboardData = async () => {
@@ -91,11 +75,7 @@ const scheduleCronJob = async () => {
 
   // Fetch data initially such that we have something to serve. There will at most
   // be a buffer of 5 minutes from this running until the first cron execution.
-  if (
-    !fs.existsSync(CIRCULATING_SUPPLY_DATA_PATH) ||
-    !fs.existsSync(TOTAL_SUPPLY_DATA_PATH) ||
-    !fs.existsSync(ADDRESSES_DATA_PATH)
-  )
+  if (!fs.existsSync(CIRCULATING_SUPPLY_DATA_PATH) || !fs.existsSync(TOTAL_SUPPLY_DATA_PATH))
     await fetchAndWriteSupplyData();
 
   if (!fs.existsSync(LANDING_PAGE_DATA_PATH)) await fetchAndWriteLandingPageData();
@@ -144,63 +124,6 @@ app.get("/total-supply", async (req, res) => {
 
   res.setHeader("Retry-After", calculateMinutesUntilNextInterval(5));
   res.status(503).send();
-});
-
-app.get("/addresses", async (req, res) => {
-  if (fs.existsSync(ADDRESSES_DATA_PATH)) {
-    const addressesFileData = fs.readFileSync(ADDRESSES_DATA_PATH);
-    res.setHeader("Content-Type", "application/json");
-    const addressesData = JSON.parse(addressesFileData.toString());
-    res.send(addressesData);
-
-    return;
-  }
-
-  res.setHeader("Retry-After", calculateMinutesUntilNextInterval(5));
-  res.status(503).send();
-});
-
-app.get("/address", async (req, res) => {
-  if (fs.existsSync(ADDRESSES_DATA_PATH)) {
-    res.setHeader("Content-Type", "application/json");
-
-    if (!req.query.address) {
-      res.send({});
-      return;
-    }
-
-    const addressesFileData = fs.readFileSync(ADDRESSES_DATA_PATH);
-    const { addresses } = JSON.parse(addressesFileData.toString());
-    const receivedAddress = req.query.address as string;
-
-    res.send({ [receivedAddress]: addresses[receivedAddress] });
-
-    return;
-  }
-
-  res.setHeader("Retry-After", calculateMinutesUntilNextInterval(5));
-  res.status(503).send();
-});
-
-app.get("/address_ui", async (req, res) => {
-  if (!fs.existsSync(ADDRESSES_DATA_PATH)) {
-    res.setHeader("Retry-After", calculateMinutesUntilNextInterval(5));
-    res.status(503).send();
-    return;
-  }
-
-  if (!req.query.address) {
-    res.render(ADDRESS_UI_HTML);
-    return;
-  }
-
-  const addressesFileData = fs.readFileSync(ADDRESSES_DATA_PATH);
-  const { addresses } = JSON.parse(addressesFileData.toString());
-
-  res.render(ADDRESS_UI_HTML, {
-    address: req.query.address,
-    ...addresses[req.query.address as string],
-  });
 });
 
 app.get("/landing-page-data", async (req, res) => {

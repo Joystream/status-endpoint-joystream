@@ -86,15 +86,6 @@ type NetworkStatus = {
   runtimeData: RuntimeData
 }
 
-type Address = {
-  recorded_at_block: number;
-  recorded_at_time: string;
-  total_balance: number
-  transferrable_balance: number
-  locked_balance: number
-  vesting_lock: number
-}
-
 export class JoyApi {
   endpoint: string;
   tokenDecimals!: number;
@@ -464,87 +455,6 @@ export class JoyApi {
     // Subtract the total supply from the total locked amount to get
     // the amount of tokens that are currently in circulation.
     return totalSupply - this.toJOY(totalLockedAmount);
-  }
-
-  async getAddresses() {
-    const finalizedHeadHash = await this.finalizedHash();
-    const { number: blockNumber } = await this.api.rpc.chain.getHeader(`${finalizedHeadHash}`);
-    const timestamp = await this.api.query.timestamp.now.at(finalizedHeadHash);
-    const finalizedApi = await this.api.at(finalizedHeadHash);
-    const currentBlock = blockNumber.toBn();
-    const currentTime = (new Date(timestamp.toNumber())).toISOString();
-
-    const lockData = await finalizedApi.query.balances.locks.entries();
-    const systemAccounts = await finalizedApi.query.system.account.entries();
-    const resultData = systemAccounts.reduce((acc, [key, account]) => {
-      const address = key.args[0].toString();
-
-      acc[address] = {
-        tempAmount: new BN(0),
-        tempAmount2: new BN(0),
-        recorded_at_block: currentBlock.toNumber(),
-        recorded_at_time: currentTime,
-        total_balance: 0,
-        transferrable_balance: 0,
-        locked_balance: 0,
-        vesting_lock: 0,
-      };
-
-      return acc;
-    }, {} as {
-      [key: string]: {
-        tempAmount: BN;
-        tempAmount2: BN;
-      } & Address;
-    });
-
-    for (let [storageKey, palletBalances] of lockData) {
-      let biggestLock = new BN(0);
-      let biggestVestingLock = new BN(0);
-      const address = storageKey.args[0].toString();
-
-      for (let palletBalance of palletBalances) {
-        if(palletBalance.amount.toBn().gt(biggestLock)) {
-          biggestLock = palletBalance.amount.toBn();
-        }
-
-        if (
-          palletBalance.id.toString() === VESTING_STRING_HEX &&
-          palletBalance.amount.toBn().gt(biggestVestingLock)
-        ) {
-          biggestVestingLock = palletBalance.amount.toBn();
-        }
-      }
-
-      if(biggestLock.gt(new BN(0))) {
-        resultData[address].tempAmount = biggestLock;
-      }
-
-      if (biggestVestingLock.gt(new BN(0))) {
-        resultData[address].vesting_lock = this.toJOY(biggestVestingLock);
-        resultData[address].tempAmount2 = biggestVestingLock;
-      }
-    }
-
-    systemAccounts.forEach(([key, account]) => {
-      const address = key.args[0].toString();
-
-      const totalBalance = this.toJOY(account.data.free);
-      const lockedBalance = this.toJOY(
-        BN.min(resultData[address].tempAmount, BN.min(account.data.free, account.data.miscFrozen))
-      );
-      resultData[address].total_balance = totalBalance;
-      resultData[address].transferrable_balance = totalBalance - lockedBalance;
-      resultData[address].locked_balance = lockedBalance;
-      resultData[address].vesting_lock = this.toJOY(
-        BN.min(resultData[address].tempAmount2, BN.min(account.data.free, account.data.miscFrozen))
-      );
-    });
-
-    Object.keys(resultData).forEach((address) => { delete (resultData[address] as any).tempAmount; });
-    Object.keys(resultData).forEach((address) => { delete (resultData[address] as any).tempAmount2; });
-
-    return resultData as { [key: string]: Address };
   }
 
   async getValidatorReward(startBlockHash: HexString, endBlockHash: HexString) {
