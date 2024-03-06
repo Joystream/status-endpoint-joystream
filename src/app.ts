@@ -11,6 +11,7 @@ import getCirculatingSupply from "./get-circulating-supply";
 import { calculateMinutesUntilNextInterval } from "./utils";
 import getTotalSupply from "./get-total-supply";
 import { DashboardAPI } from "./dashboardApi";
+import { dashboardDataSchema, landingPageDataSchema } from "./validation";
 
 const app = express();
 const cache = apicache.middleware;
@@ -22,7 +23,6 @@ const DASHBOARD_DATA_PATH = path.join(__dirname, "../dashboard-data.json");
 
 app.use(cors());
 app.use(express.json());
-app.set("view engine", "ejs");
 
 const dashboardAPI = new DashboardAPI();
 
@@ -42,20 +42,19 @@ const scheduleCronJob = async () => {
       getLandingPageQNData(),
     ]);
 
-    fs.writeFileSync(
-      LANDING_PAGE_DATA_PATH,
-      JSON.stringify(
-        {
-          ...price,
-          ...circulatingSupplyData,
-          ...totalSupplyData,
-          carouselData: { nfts, proposals, payouts, creators },
-          ...rest,
-        },
-        null,
-        2
-      )
-    );
+    try {
+      const landingPageData = landingPageDataSchema.parse({
+        ...price,
+        ...circulatingSupplyData,
+        ...totalSupplyData,
+        carouselData: { nfts, proposals, payouts, creators },
+        ...rest,
+      });
+
+      fs.writeFileSync(LANDING_PAGE_DATA_PATH, JSON.stringify(landingPageData, null, 2));
+    } catch (e) {
+      /* If the data is invalid, we don't want to write anything to the file. */
+    }
   };
 
   const fetchAndWriteSupplyData = async () => {
@@ -67,9 +66,13 @@ const scheduleCronJob = async () => {
   };
 
   const fetchAndWriteDashboardData = async () => {
-    const dashboardData = await dashboardAPI.getFullData();
+    try {
+      const dashboardData = dashboardDataSchema.parse(await dashboardAPI.getFullData());
 
-    fs.writeFileSync(DASHBOARD_DATA_PATH, JSON.stringify(dashboardData, null, 2));
+      fs.writeFileSync(DASHBOARD_DATA_PATH, JSON.stringify(dashboardData, null, 2));
+    } catch (e) {
+      /* If the data is invalid, we don't want to write anything to the file. */
+    }
   };
 
   // Fetch data initially such that we have something to serve. There will at most
