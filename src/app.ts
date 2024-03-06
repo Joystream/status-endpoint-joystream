@@ -4,7 +4,6 @@ import cors from "cors";
 import cron from "node-cron";
 import path from "path";
 import fs from "fs";
-import { getStatus } from "./get-status";
 import { log } from "./debug";
 import getLandingPageQNData from "./get-landing-page-qn-data";
 import getPrice from "./get-price";
@@ -85,12 +84,6 @@ const scheduleCronJob = async () => {
   cron.schedule("*/5 * * * *", fetchAndWriteSupplyData);
   cron.schedule("0 */4 * * *", fetchAndWriteDashboardData);
 };
-
-app.get("/", cache("1 hour"), async (req, res) => {
-  let status = await getStatus();
-  res.setHeader("Content-Type", "application/json");
-  res.send(status);
-});
 
 app.get("/price", cache("10 minutes"), async (req, res) => {
   let price = await getPrice();
