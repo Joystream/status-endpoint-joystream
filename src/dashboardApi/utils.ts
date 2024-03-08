@@ -16,6 +16,8 @@ export const getNumberOfGithubItemsFromPageNumbers = (linkString: string | undef
 };
 
 export const separateQNDataByWeek = (data: { createdAt: string }[]) => {
+  if (data?.length === 0) return [];
+
   let weekIndex = 0;
   let weeks = [];
 
@@ -55,6 +57,8 @@ export const separateQNDataByWeek = (data: { createdAt: string }[]) => {
 };
 
 export const separateQNDataByWeekAndAmount = (data: { createdAt: string; price: string }[]) => {
+  if (data?.length === 0) return [];
+
   let weekIndex = 0;
   let weeks = [];
   let firstDate = new Date(data[0].createdAt);

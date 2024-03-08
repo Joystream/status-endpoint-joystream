@@ -216,7 +216,9 @@ export class JoyApi {
   }
 
   async APR() {
-    const activeValidatorAddresses = await this.api.query.session.validators();
+    const activeValidatorAddresses = (await this.api.query.session.validators()).map((address) =>
+      address.toString()
+    );
     const validators = await this.api.query.staking.validators.entries();
     const activeValidators = validators.filter(([key, _]) =>
       activeValidatorAddresses.includes(key.args[0].toString())
