@@ -24,7 +24,7 @@
     "@types/bn.js": "^5.1.0"
   },
   "dependencies": {
-    "@joystream/types": "^0.20.5",
+    "@joystream/types": "^4.2.0",
     "@polkadot/api": "10.12.1",
     "@polkadot/keyring": "12.6.2",
     "@polkadot/types": "10.12.1",
