@@ -458,7 +458,7 @@ export class DashboardAPI {
         }
       ),
       await fetchGenericAPIData<CoinGeckoMarketsData>({
-        url: `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=lbry-credits,deso,theta-token,livepeer,cyberconnect&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
+        url: `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=deso,theta-token,livepeer,cyberconnect&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
       }),
     ]);
 
@@ -565,9 +565,6 @@ export class DashboardAPI {
 
         return acc;
       }, {} as FDVs);
-
-      // This is hardcoded for now as Rumble is a publicly traded company compared to other projects.
-      fdvs.rum = 2_020_000_000;
     }
 
     if (uniqueTokenData) {
