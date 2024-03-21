@@ -99,7 +99,7 @@ export const TEAM_QN_QUERIES = {
   COUNCIL: `{
     electionRounds(limit: 2, orderBy: cycleId_DESC) {
       cycleId
-      endedAtTime
+      createdAt
     }
     councilMembers(limit: 3, orderBy: createdAt_DESC) {
       member {

@@ -1042,15 +1042,17 @@ export class DashboardAPI {
     ]);
 
     if (councilData) {
+      const electionRound = councilData.electionRounds[0] ?? councilData.electionRounds[1];
       const combinedLengthOfCouncilStages =
         idlePeriodDuration + voteStageDuration + revealStageDuration + announcingPeriodDuration;
       const approximatedLengthInSeconds = combinedLengthOfCouncilStages * 6;
-      const startOfElectionRound = new Date(councilData.electionRounds[1].endedAtTime);
-      const endOfElectionRound = new Date(councilData.electionRounds[1].endedAtTime);
+      const startOfElectionRound = new Date(electionRound.createdAt);
+      const endOfElectionRound = new Date(electionRound.createdAt);
       endOfElectionRound.setSeconds(
         startOfElectionRound.getSeconds() + approximatedLengthInSeconds
       );
 
+      // TODO: This might potentially need to be changed as it might show stale ids with new system:
       currentCouncilTerm = councilData.electionRounds[1].cycleId;
       councilTermLengthInDays = Math.round(approximatedLengthInSeconds / (60 * 60 * 24));
       startOfCouncilElectionRound = startOfElectionRound.toISOString();
