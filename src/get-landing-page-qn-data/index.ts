@@ -148,29 +148,27 @@ const parseCarouselData = async (
     )
   );
 
-  const proposals = (await incorporateProposalExpiryDate(response.proposals))
-    .filter((proposal) => proposal?.timeLeftUntil !== undefined)
-    .map(
-      ({
-        title,
-        status: { __typename: statusType },
-        id,
-        creator: {
-          metadata: { avatar },
-        },
-        statusSetAtTime,
-        createdAt,
-        timeLeftUntil,
-      }) => ({
-        title,
-        status: getStatusFromStatusType(statusType),
-        link: `https://pioneerapp.xyz/#/proposals/preview/${id}`,
-        img: avatar?.avatarUri,
-        statusSetAtTime,
-        createdAt,
-        timeLeftUntil,
-      })
-    );
+  const proposals = (await incorporateProposalExpiryDate(response.proposals)).map(
+    ({
+      title,
+      status: { __typename: statusType },
+      id,
+      creator: {
+        metadata: { avatar },
+      },
+      statusSetAtTime,
+      createdAt,
+      timeLeftUntil,
+    }) => ({
+      title,
+      status: getStatusFromStatusType(statusType),
+      link: `https://pioneerapp.xyz/#/proposals/preview/${id}`,
+      img: avatar?.avatarUri,
+      statusSetAtTime,
+      createdAt,
+      timeLeftUntil,
+    })
+  );
 
   const payouts = (
     await Promise.all(
