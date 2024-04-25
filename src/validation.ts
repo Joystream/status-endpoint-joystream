@@ -57,11 +57,6 @@ const dashboardDataSchema = z.object({
     joyAnnualInflation: z.number(),
     percentSupplyStakedForValidation: z.number(),
     apr: z.number(),
-    roi: z.record(z.string(), z.number()),
-    supplyDistribution: z.record(
-      z.string(),
-      z.object({ supply: z.number(), percentOfCirculatingSupply: z.number() })
-    ),
   }),
   traction: z.object({
     totalNumberOfChannels: z.number(),

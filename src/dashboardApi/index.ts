@@ -44,8 +44,6 @@ import {
   TokenQNMintingData,
   CoingGeckoMarketChartRange,
   TimestampToValueTupleArray,
-  SubscanAccountsData,
-  SubscanAccountsList,
   ExchangeSpecificData,
   CoingGeckoExchangeData,
   FDVs,
@@ -86,15 +84,6 @@ const COINGECKO_API_KEY = process.env.COINGECKO_API_KEY;
 const GITHUB_JOYSTREAM_ORGANIZATION_NAME = "joystream";
 const BLOCKS_IN_A_WEEK = 10 * 60 * 24 * 7;
 
-const ADDRESS_DISTRIBUTION_INTEREST_POINTS_IN_JOY = (joyPrice: number) => [
-  10_000_000 / joyPrice,
-  100_000 / joyPrice,
-  10_000 / joyPrice,
-  1000 / joyPrice,
-  100 / joyPrice,
-  1_000_000,
-];
-
 // Since there's no way of tracking the amount of tokens burned, we have to hardcode these values.
 const AMOUNT_OF_JOY_BURNED_TILL_JAN_2024 = 35_000_000;
 
@@ -133,22 +122,6 @@ const GITHUB_REPOS_TO_IGNORE = [
 // This timestamp is for the earliest date JOY is saved on CMC. This date happens
 // a bit later on CoinGecko, but we'll use this date as it works regardless.
 const UNIX_TIMESTAMP_OF_JOY_LAUNCH = 1685664000;
-
-const filterAddressesByDistributionInterest = (
-  addresses: SubscanAccountsList,
-  joyPrice: number,
-  distributionInterestPointIndex: number
-) => {
-  return addresses.filter(
-    (address) =>
-      Number(address.balance) >=
-      ADDRESS_DISTRIBUTION_INTEREST_POINTS_IN_JOY(joyPrice ?? 0)[distributionInterestPointIndex]
-  );
-};
-
-const addressBalanceSum = (addresses: SubscanAccountsList) => {
-  return addresses.reduce((acc, curr) => acc + Number(curr.balance), 0);
-};
 
 export class DashboardAPI {
   githubAPI: Octokit;
@@ -383,54 +356,6 @@ export class DashboardAPI {
     };
   }
 
-  async fetchJoystreamAdresses(joyPrice: number) {
-    let addresses: SubscanAccountsList = [];
-
-    const accountData = await this.fetchSubscanData<SubscanAccountsData>(
-      "https://joystream.api.subscan.io/api/v2/scan/accounts",
-      {
-        order_field: "balance",
-        order: "desc",
-        page: 0,
-        row: 100,
-        filter: "",
-      }
-    );
-
-    if (!accountData) return { totalNumberOfAddresses: 0, addresses };
-
-    let currentPageCount = 1;
-
-    addresses = accountData.list;
-
-    while (true) {
-      const accountData = await this.fetchSubscanData<SubscanAccountsData>(
-        "https://joystream.api.subscan.io/api/v2/scan/accounts",
-        {
-          order_field: "balance",
-          order: "desc",
-          page: currentPageCount,
-          row: 100,
-          filter: "",
-        }
-      );
-
-      if (!accountData) break;
-
-      const MINIMUM_JOY_ADDRESS_AMOUNT = ADDRESS_DISTRIBUTION_INTEREST_POINTS_IN_JOY(joyPrice)[4];
-
-      addresses = [...addresses, ...accountData.list];
-      currentPageCount++;
-
-      if (
-        Number(accountData.list[accountData.list.length - 1].balance) < MINIMUM_JOY_ADDRESS_AMOUNT
-      )
-        break;
-    }
-
-    return { totalNumberOfAddresses: accountData.count, addresses };
-  }
-
   async getTokenData() {
     let price: number | null = null;
     let priceWeeklyChange = null;
@@ -444,8 +369,6 @@ export class DashboardAPI {
     let fdvs: FDVs | null = null;
     let joyAnnualInflation = null;
     let percentSupplyStakedForValidation = null;
-    let roi = null;
-    let supplyDistribution = null;
 
     const [hourlySixMonthPriceData, marketsData] = await Promise.all([
       this.fetchSubscanData<SubscanPriceHistoryListData>(
@@ -465,27 +388,10 @@ export class DashboardAPI {
     if (hourlySixMonthPriceData) {
       const { list: prices } = hourlySixMonthPriceData;
 
-      const lastHourValue = Number(prices[prices.length - 2].price);
-      const last12HoursValue = Number(prices[prices.length - 12].price);
-      const lastDayValue = Number(prices[prices.length - 24].price);
-      const last3DaysValue = Number(prices[prices.length - 24 * 3].price);
       const lastWeekValue = Number(prices[prices.length - 24 * 7].price);
-      const lastMonthValue = Number(prices[prices.length - 24 * 30].price);
-      const last3MonthsValue = Number(prices[prices.length - 24 * 90].price);
-      const last6MonthsValue = Number(prices[prices.length - 24 * 180].price);
 
       price = Number(prices[prices.length - 1].price);
       priceWeeklyChange = ((price - lastWeekValue) / lastWeekValue) * 100;
-      roi = {
-        "1hour": ((price - lastHourValue) / lastHourValue) * 100,
-        "12hours": ((price - last12HoursValue) / last12HoursValue) * 100,
-        "24hours": ((price - lastDayValue) / lastDayValue) * 100,
-        "3days": ((price - last3DaysValue) / last3DaysValue) * 100,
-        "1week": priceWeeklyChange,
-        "1month": ((price - lastMonthValue) / lastMonthValue) * 100,
-        "3months": ((price - last3MonthsValue) / last3MonthsValue) * 100,
-        "6months": ((price - last6MonthsValue) / last6MonthsValue) * 100,
-      };
     }
 
     const [
@@ -498,7 +404,6 @@ export class DashboardAPI {
       inflation,
       uniqueTokenData,
       apr,
-      joystreamAddresses,
     ] = await Promise.all([
       fetchGenericAPIData<CoingGeckoMarketChartRange>({
         url: `https://api.coingecko.com/api/v3/coins/joystream/market_chart/range?vs_currency=usd&from=${UNIX_TIMESTAMP_OF_JOY_LAUNCH}&to=${getUnixTimestampFromDate(
@@ -523,7 +428,6 @@ export class DashboardAPI {
         "GET"
       ),
       this.joyAPI.APR(),
-      this.fetchJoystreamAdresses(price ?? 0),
     ]);
 
     if (dailyLongTermTokenData && dailyShortTermTokenData) {
@@ -575,73 +479,6 @@ export class DashboardAPI {
         (hapiToJoy(Number(bonded_locked_balance)) / totalSupply) * 100;
     }
 
-    if (joystreamAddresses) {
-      const { totalNumberOfAddresses, addresses } = joystreamAddresses;
-
-      const onePercentOfAddressesCount = Math.round(totalNumberOfAddresses * 0.01);
-
-      const top100AddressesSupply = addressBalanceSum(addresses.slice(0, 100));
-      const top1PercentAddressesSupply = addressBalanceSum(
-        addresses.slice(0, onePercentOfAddressesCount)
-      );
-      const addressesWith10MillionUSDOrMoreSupply = addressBalanceSum(
-        filterAddressesByDistributionInterest(addresses, price ?? 0, 0)
-      );
-      const addressesWith100ThousandUSDOrMoreSupply = addressBalanceSum(
-        filterAddressesByDistributionInterest(addresses, price ?? 0, 1)
-      );
-      const addressesWith10ThousandUSDOrMoreSupply = addressBalanceSum(
-        filterAddressesByDistributionInterest(addresses, price ?? 0, 2)
-      );
-      const addressesWith1000USDOrMoreSupply = addressBalanceSum(
-        filterAddressesByDistributionInterest(addresses, price ?? 0, 3)
-      );
-      const addressesWith100USDOrMoreSupply = addressBalanceSum(
-        filterAddressesByDistributionInterest(addresses, price ?? 0, 4)
-      );
-      const addressesWith1MJOYOrMoreSupply = addressBalanceSum(
-        filterAddressesByDistributionInterest(addresses, price ?? 0, 5)
-      );
-
-      supplyDistribution = {
-        top100Addresses: {
-          supply: top100AddressesSupply,
-          percentOfCirculatingSupply: (top100AddressesSupply / circulatingSupply) * 100,
-        },
-        top1PercentAddresses: {
-          supply: top1PercentAddressesSupply,
-          percentOfCirculatingSupply: (top1PercentAddressesSupply / circulatingSupply) * 100,
-        },
-        addressesOver10MUSD: {
-          supply: addressesWith10MillionUSDOrMoreSupply,
-          percentOfCirculatingSupply:
-            (addressesWith10MillionUSDOrMoreSupply / circulatingSupply) * 100,
-        },
-        addressesOver100KUSD: {
-          supply: addressesWith100ThousandUSDOrMoreSupply,
-          percentOfCirculatingSupply:
-            (addressesWith100ThousandUSDOrMoreSupply / circulatingSupply) * 100,
-        },
-        addressesOver10KUSD: {
-          supply: addressesWith10ThousandUSDOrMoreSupply,
-          percentOfCirculatingSupply:
-            (addressesWith10ThousandUSDOrMoreSupply / circulatingSupply) * 100,
-        },
-        addressesOver1KUSD: {
-          supply: addressesWith1000USDOrMoreSupply,
-          percentOfCirculatingSupply: (addressesWith1000USDOrMoreSupply / circulatingSupply) * 100,
-        },
-        addressesOver100USD: {
-          supply: addressesWith100USDOrMoreSupply,
-          percentOfCirculatingSupply: (addressesWith100USDOrMoreSupply / circulatingSupply) * 100,
-        },
-        addressesOver1MJOY: {
-          supply: addressesWith1MJOYOrMoreSupply,
-          percentOfCirculatingSupply: (addressesWith1MJOYOrMoreSupply / circulatingSupply) * 100,
-        },
-      };
-    }
-
     return {
       price,
       priceWeeklyChange,
@@ -660,8 +497,6 @@ export class DashboardAPI {
       joyAnnualInflation,
       percentSupplyStakedForValidation,
       apr,
-      roi,
-      supplyDistribution,
     };
   }
 

@@ -213,15 +213,6 @@ export type CoingGeckoMarketChartRange = {
   total_volumes: TimestampToValueTupleArray;
 };
 
-export type SubscanAccountsList = Array<{
-  balance: string;
-}>;
-
-export type SubscanAccountsData = {
-  count: number;
-  list: SubscanAccountsList;
-};
-
 export type CoingGeckoExchangeData = {
   tickers: Array<{
     market: {
