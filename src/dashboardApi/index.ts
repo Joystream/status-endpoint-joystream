@@ -121,7 +121,7 @@ const GITHUB_REPOS_TO_IGNORE = [
 
 // This timestamp is for the earliest date JOY is saved on CMC. This date happens
 // a bit later on CoinGecko, but we'll use this date as it works regardless.
-const UNIX_TIMESTAMP_OF_JOY_LAUNCH = 1685664000;
+// const UNIX_TIMESTAMP_OF_JOY_LAUNCH = 1685664000;
 
 export class DashboardAPI {
   githubAPI: Octokit;
@@ -406,9 +406,9 @@ export class DashboardAPI {
       apr,
     ] = await Promise.all([
       fetchGenericAPIData<CoingGeckoMarketChartRange>({
-        url: `https://api.coingecko.com/api/v3/coins/joystream/market_chart/range?vs_currency=usd&from=${UNIX_TIMESTAMP_OF_JOY_LAUNCH}&to=${getUnixTimestampFromDate(
-          new Date()
-        )}&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
+        url: `https://api.coingecko.com/api/v3/coins/joystream/market_chart/range?vs_currency=usd&from=${getUnixTimestampFromDate(
+          getDateYearsAgo(1)
+        )}&to=${getUnixTimestampFromDate(new Date())}&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
       }),
       fetchGenericAPIData<CoingGeckoMarketChartRange>({
         url: `https://api.coingecko.com/api/v3/coins/joystream/market_chart/range?vs_currency=usd&from=${getUnixTimestampFromDate(
