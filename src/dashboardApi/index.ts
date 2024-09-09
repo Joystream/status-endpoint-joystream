@@ -374,7 +374,7 @@ export class DashboardAPI {
       this.fetchSubscanData<SubscanPriceHistoryListData>(
         "https://joystream.api.subscan.io/api/scan/price/history",
         {
-          currency: "string",
+          currency: "joy",
           start: getYearMonthDayString(getDateMonthsAgo(6)),
           format: "hour",
           end: getYearMonthDayString(getTomorrowsDate()),
