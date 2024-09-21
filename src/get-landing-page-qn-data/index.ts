@@ -310,7 +310,7 @@ const getPriceData = async () => {
     const priceResponse = await axios.post(
       `https://joystream.api.subscan.io/api/scan/price/history`,
       {
-        currency: "string",
+        currency: "joy",
         end: getYearMonthDayString(getTomorrowsDate()),
         format: "hour",
         start: getYearMonthDayString(getDateWeeksAgo(1)),
