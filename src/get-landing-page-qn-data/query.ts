@@ -8,12 +8,16 @@ export const landingPageQueries = {
       id
     }
   }`,
-  auxiliaryData: `
+  memberships: (offset: number, limit: number) => `
   {
-    memberships(limit: ${NO_LIMIT_NUMBER}) {
+    memberships(offset: ${offset}, limit: ${limit}) {
       createdAt
       id
     },
+  }
+  `,
+  auxiliaryData: `
+  {
     comments(limit: ${NO_LIMIT_NUMBER}) {
       createdAt
       id

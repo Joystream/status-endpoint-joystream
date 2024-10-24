@@ -339,36 +339,44 @@ const getPriceData = async () => {
 
 // Due to sheer amount of objects needed to be queried, the following function
 // aims to fetch them in a paginated manner to avoid 502 and 504 errors.
-const fetchVideos = async () => {
-  let resultVideos: GenericObject[] = [];
+const paginatedFetch = async (
+  queryFunction: (offset: number, numberOfVideosToFetch: number) => string,
+  itemName: string,
+  fetchAmount: number
+) => {
+  let result: GenericObject[] = [];
   let offset = 0;
-  const NUMBER_OF_VIDEOS_TO_FETCH = 200_000;
 
   while (true) {
-    const videosResponse = await api.qnQuery<{
-      videos: Array<GenericObject>;
-    }>(landingPageQueries["videos"](offset, NUMBER_OF_VIDEOS_TO_FETCH));
+    const QNResponse = await api.qnQuery<{
+      [key: string]: Array<GenericObject>;
+    }>(queryFunction(offset, fetchAmount));
 
-    if (!videosResponse) {
+    if (!QNResponse) {
       return [];
     }
 
-    const { videos } = videosResponse;
+    const items = QNResponse[itemName];
 
-    resultVideos = [...resultVideos, ...videos];
+    result = [...result, ...items];
 
-    if (videos.length < NUMBER_OF_VIDEOS_TO_FETCH) {
+    if (items.length < fetchAmount) {
       break;
     }
 
-    offset += NUMBER_OF_VIDEOS_TO_FETCH;
+    offset += fetchAmount;
   }
 
-  return resultVideos;
+  return result;
 };
 
 const getCarouselData = async () => {
-  const videos = await fetchVideos();
+  const videos = await paginatedFetch(landingPageQueries["videos"], "videos", 200_000);
+  const memberships = await paginatedFetch(
+    landingPageQueries["memberships"],
+    "memberships",
+    20_000
+  );
   const [carouselDataResponse, auxiliaryDataResponse, simpleChannelPaymentEventsResponse] =
     await Promise.all([
       api.qnQuery<{
@@ -377,7 +385,6 @@ const getCarouselData = async () => {
         channelPaymentMadeEvents: Array<ChannelPaymentEvent>;
       }>(landingPageQueries["carouselData"](NUMBER_OF_ITEMS_TO_FETCH)),
       api.qnQuery<{
-        memberships: Array<GenericObject>;
         comments: Array<GenericObject>;
         videoReactions: Array<GenericObject>;
         commentReactions: Array<GenericObject>;
@@ -428,8 +435,8 @@ const getCarouselData = async () => {
     videos,
     orionChannelFollows: channelFollows,
     channelPaymentMadeEvents,
+    memberships,
     ...(auxiliaryDataResponse ?? {
-      memberships: [],
       comments: [],
       videoReactions: [],
       commentReactions: [],
