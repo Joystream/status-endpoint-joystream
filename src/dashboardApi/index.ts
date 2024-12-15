@@ -443,11 +443,13 @@ export class DashboardAPI {
 
     if (exchangeData) {
       exchanges = exchangeData.tickers.reduce((acc, curr) => {
-        acc[curr.market.identifier] = {
-          volume: curr.converted_volume.usd,
-          plus2PercentDepth: curr.cost_to_move_up_usd,
-          minus2PercentDepth: curr.cost_to_move_down_usd,
-        };
+        if (acc[curr.market.identifier] === undefined) {
+          acc[curr.market.identifier] = {
+            volume: curr.converted_volume.usd,
+            plus2PercentDepth: curr.cost_to_move_up_usd,
+            minus2PercentDepth: curr.cost_to_move_down_usd,
+          };
+        }
 
         return acc;
       }, {} as ExchangeSpecificData);
