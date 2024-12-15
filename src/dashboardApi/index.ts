@@ -84,13 +84,6 @@ const COINGECKO_API_KEY = process.env.COINGECKO_API_KEY;
 const GITHUB_JOYSTREAM_ORGANIZATION_NAME = "joystream";
 const BLOCKS_IN_A_WEEK = 10 * 60 * 24 * 7;
 
-// Since there's no way of tracking the amount of tokens burned, we have to hardcode these values.
-const AMOUNT_OF_JOY_BURNED_TILL_JAN_2024 = 35_000_000;
-
-// Sources for this:
-// https://pioneerapp.xyz/#/forum/thread/632?post=5299, https://pioneerapp.xyz/#/proposals/preview/717
-const AMOUNT_OF_JOY_MINTED_FOR_LIQUIDITY_PROVISION = 1_560_000;
-
 const DISCRETIONARY_PAYMENT_EXCLUSION_KEYWORDS = ["crew3", "zealy"];
 
 const WORKING_GROUP_NAMES = {
@@ -315,22 +308,19 @@ export class DashboardAPI {
     // actions as well (e.g., burning tokens or providing liqudity for JOY to USDT conversions).
     // We need to subtract those amounts from the total amount of minted tokens but they're not
     // tracked in the QN at the moment. That's why these values will be hardcoded for now.
-    const cumulativeDiscretionaryPaymentAmount =
-      hapiToJoy(
-        Number(
-          qnMintingData.budgetSpendingEvents.reduce((acc, event) => {
-            for (let keyword of DISCRETIONARY_PAYMENT_EXCLUSION_KEYWORDS) {
-              if (event.rationale?.toLowerCase().includes(keyword)) {
-                return acc;
-              }
+    const cumulativeDiscretionaryPaymentAmount = hapiToJoy(
+      Number(
+        qnMintingData.budgetSpendingEvents.reduce((acc, event) => {
+          for (let keyword of DISCRETIONARY_PAYMENT_EXCLUSION_KEYWORDS) {
+            if (event.rationale?.toLowerCase().includes(keyword)) {
+              return acc;
             }
+          }
 
-            return acc + BigInt(event.amount);
-          }, BigInt(0))
-        )
-      ) -
-      AMOUNT_OF_JOY_BURNED_TILL_JAN_2024 -
-      AMOUNT_OF_JOY_MINTED_FOR_LIQUIDITY_PROVISION;
+          return acc + BigInt(event.amount);
+        }, BigInt(0))
+      )
+    );
 
     const cumulativeTotalWorkersRewardsAmount =
       cumulativeWorkersRewardsAmount +
