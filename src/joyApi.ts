@@ -1,4 +1,5 @@
 import "@joystream/types";
+import _ from 'lodash';
 import { WsProvider, ApiPromise } from "@polkadot/api";
 import { ChainProperties, Hash } from "@polkadot/types/interfaces";
 import { config } from "dotenv";
@@ -6,6 +7,8 @@ import BN from "bn.js";
 import fetch from "cross-fetch";
 import { HexString } from "@polkadot/util/types";
 import { perbillToPercent, percentToPerbill } from "./utils";
+import { ACCOUNTS_QUERY, DAILY_ACTIVE_ACCOUNTS_QUERY, EXTRINSICS_QUERY } from "./dashboardApi/queries";
+import { ArchiveAccountsData, ArchiveDailyActiveAccountsData, ArchiveExtrinsicsData } from "./dashboardApi/types";
 
 // Init .env config
 config();
@@ -14,7 +17,10 @@ config();
 if (process.env.QUERY_NODE === undefined) {
   throw new Error("Missing QUERY_NODE in .env!");
 }
-const QUERY_NODE = process.env.QUERY_NODE;
+if (process.env.SQUID_ARCHIVE_URL === undefined) {
+  throw new Error("Missing SQUID_ARCHIVE_URL in .env!");
+}
+const { QUERY_NODE, SQUID_ARCHIVE_URL } = process.env;
 const VESTING_STRING_HEX = "0x76657374696e6720";
 const ERAS_PER_DAY = 4;
 const ERAS_PER_YEAR = ERAS_PER_DAY * 365;
@@ -79,6 +85,70 @@ export class JoyApi {
     }
 
     return null;
+  }
+
+  async archiveQuery<T>(query: string): Promise<T | null> {
+    try {
+      const res = await fetch(SQUID_ARCHIVE_URL, {
+        method: "POST",
+        headers: { "Content-type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+
+      if (res.ok) {
+        let responseData = (await res.json()).data;
+        return responseData;
+      } else {
+        console.error("Invalid squid archive response status", res.status);
+      }
+    } catch (e) {
+      console.error("Squid archive fetch error:", e);
+    }
+
+    return null;
+  }
+
+  async extrinsicsStats(): Promise<{ now: number, weekAgo: number } | null> {
+    const resp = await this.archiveQuery<ArchiveExtrinsicsData>(EXTRINSICS_QUERY)
+    if (resp) {
+      return {
+        now: resp.extrinsicsNow.totalCount,
+        weekAgo: resp.extrinsicsWeekAgo.totalCount,
+      }
+    }
+    return null
+  }
+
+  async dailyActiveAccountsStats(): Promise<{ now: number, weekAgo: number } | null> {
+    const resp = await this.archiveQuery<ArchiveDailyActiveAccountsData>(DAILY_ACTIVE_ACCOUNTS_QUERY)
+    if (resp) {
+      return {
+        now: _.uniqBy(resp.dailyActiveAccountsNow, ({ args: { who } }) => who).length,
+        weekAgo: _.uniqBy(resp.dailyActiveAccountsWeekAgo, ({ args: { who } }) => who).length,
+      };
+    }
+    return null
+  }
+
+  async accountsStats(): Promise<{ now: number, weekAgo: number } | null> {
+    const resp = await this.archiveQuery<ArchiveAccountsData>(ACCOUNTS_QUERY)
+    if (resp) {
+      return {
+        now: resp.newAccountsNow.totalCount - resp.killedAccountsNow.totalCount,
+        weekAgo: resp.newAccountsWeekAgo.totalCount - resp.killedAccountsWeekAgo.totalCount,
+      };
+    }
+    return null
+  }
+
+  async avgBlockTime(startBlock = 1): Promise<string> {
+    const startBlockHash = await this.api.rpc.chain.getBlockHash(startBlock);
+    const endBlockHash = await this.api.rpc.chain.getFinalizedHead();
+    const endBlockNumber = (await this.api.rpc.chain.getHeader(endBlockHash)).number.toNumber();
+    const startTs = await (await this.api.at(startBlockHash)).query.timestamp.now()
+    const endTs = await (await this.api.at(endBlockHash)).query.timestamp.now()
+
+    return ((endTs.toNumber() - startTs.toNumber()) / (endBlockNumber - startBlock) / 1000).toFixed(2);
   }
 
   async totalIssuanceInJOY(blockHash?: Hash): Promise<number> {
@@ -269,5 +339,20 @@ export class JoyApi {
     const totalSupply = await this.totalIssuanceInJOY();
 
     return ((totalSupply - totalSupplyAYearAgo) / totalSupplyAYearAgo) * 100;
+  }
+
+  async totalStaked(): Promise<BN> {
+    const elected = await this.api.derive.staking.electedInfo({
+      withController: true,
+      withExposureErasStakersLegacy: true,
+      withPrefs: true
+    })
+    const staked = elected.info.reduce((sum, data) => (
+      sum.add(data.exposureEraStakers?.total ?
+        data.exposureEraStakers.total.unwrap().toBn()
+        : new BN(0))
+    ), new BN(0))
+    
+    return staked
   }
 }

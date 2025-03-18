@@ -1,7 +1,6 @@
 import assert from "assert";
 import { config } from "dotenv";
 import { Octokit } from "octokit";
-import axios from "axios";
 import { REST, Routes, GuildChannel } from "discord.js";
 
 import { JoyApi } from "../joyApi";
@@ -20,8 +19,6 @@ import {
 } from "./utils";
 import {
   GithubContributor,
-  SubscanBlockchainMetadata,
-  GeneralSubscanDailyListData,
   GenericQNTractionItem,
   ChannelsQueryData,
   VideosConnectionData,
@@ -39,8 +36,6 @@ import {
   DiscordAPIEvent,
   DiscordEvent,
   TweetScoutAPITopFollowers,
-  SubscanPriceHistoryListData,
-  SubscanUniqueTokenData,
   TokenQNMintingData,
   CoingGeckoMarketChartRange,
   TimestampToValueTupleArray,
@@ -53,7 +48,6 @@ import { TEAM_QN_QUERIES, TOKEN_MINTING_QN_QUERY, TRACTION_QN_QUERIES } from "./
 import {
   getDateWeeksAgo,
   getDateMonthsAgo,
-  getYearMonthDayString,
   getTomorrowsDate,
   getUnixTimestampFromDate,
   getDateDaysAgo,
@@ -63,7 +57,6 @@ import {
 config();
 
 assert(process.env.GITHUB_AUTH_TOKEN, "Missing environment variable: GITHUB_AUTH_TOKEN");
-assert(process.env.SUBSCAN_API_KEY, "Missing environment variable: SUBSCAN_API_KEY");
 assert(process.env.TWEETSCOUT_API_KEY, "Missing environment variable: TWEETSCOUT_API_KEY");
 assert(process.env.TELEGRAM_BOT_ID, "Missing e  nvironment variable: TELEGRAM_BOT_ID");
 assert(process.env.DISCORD_BOT_TOKEN, "Missing environment variable: DISCORD_BOT_TOKEN");
@@ -74,7 +67,6 @@ assert(
 assert(process.env.COINGECKO_API_KEY, "Missing environment variable: COINGECKO_API_KEY");
 
 const GITHUB_AUTH_TOKEN = process.env.GITHUB_AUTH_TOKEN;
-const SUBSCAN_API_KEY = process.env.SUBSCAN_API_KEY;
 const TWEETSCOUT_API_KEY = process.env.TWEETSCOUT_API_KEY;
 const TELEGRAM_BOT_ID = process.env.TELEGRAM_BOT_ID;
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
@@ -125,25 +117,6 @@ export class DashboardAPI {
     this.githubAPI = new Octokit({ auth: GITHUB_AUTH_TOKEN });
     this.joyAPI = new JoyApi();
     this.discordAPI = new REST({ version: "10" }).setToken(DISCORD_BOT_TOKEN);
-  }
-
-  async fetchSubscanData<T>(url: string, data?: any, method = "POST") {
-    try {
-      const response = axios({
-        method,
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": SUBSCAN_API_KEY,
-        },
-        data,
-      });
-
-      return (await response).data.data as T;
-    } catch (e) {
-      console.log(e);
-      return null;
-    }
   }
 
   async fetchAllRepoCommits(repoName: string, since: string) {
@@ -360,28 +333,28 @@ export class DashboardAPI {
     let joyAnnualInflation = null;
     let percentSupplyStakedForValidation = null;
 
-    const [hourlySixMonthPriceData, marketsData] = await Promise.all([
-      this.fetchSubscanData<SubscanPriceHistoryListData>(
-        "https://joystream.api.subscan.io/api/scan/price/history",
-        {
-          currency: "joy",
-          start: getYearMonthDayString(getDateMonthsAgo(6)),
-          format: "hour",
-          end: getYearMonthDayString(getTomorrowsDate()),
+    const [weekPricingData, marketsData] = await Promise.all([
+      fetchGenericAPIData<CoingGeckoMarketChartRange>({
+        url: `https://api.coingecko.com/api/v3/coins/joystream/market_chart/range`,
+        params: {
+          vs_currency: "usd",
+          to: getUnixTimestampFromDate(getTomorrowsDate()),
+          from: getUnixTimestampFromDate(getDateWeeksAgo(1)),
+        },
+        headers: {
+                  "Content-Type": "application/json",
+                  "x-cg-pro-api-key": COINGECKO_API_KEY,
         }
-      ),
-      await fetchGenericAPIData<CoinGeckoMarketsData>({
+      }),
+      fetchGenericAPIData<CoinGeckoMarketsData>({
         url: `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=deso,theta-token,livepeer,cyberconnect&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
       }),
     ]);
 
-    if (hourlySixMonthPriceData) {
-      const { list: prices } = hourlySixMonthPriceData;
-
-      const lastWeekValue = Number(prices[prices.length - 24 * 7].price);
-
-      price = Number(prices[prices.length - 1].price);
-      priceWeeklyChange = ((price - lastWeekValue) / lastWeekValue) * 100;
+    if (weekPricingData) {
+      const lastWeekPrice = Number(weekPricingData.prices[0][1]);
+      price = Number(weekPricingData.prices.slice(-1)[0][1]);
+      priceWeeklyChange = ((price - lastWeekPrice) / lastWeekPrice) * 100;
     }
 
     const [
@@ -392,7 +365,7 @@ export class DashboardAPI {
       exchangeData,
       tokenMintingData,
       inflation,
-      uniqueTokenData,
+      totalStaked,
       apr,
     ] = await Promise.all([
       fetchGenericAPIData<CoingGeckoMarketChartRange>({
@@ -412,11 +385,7 @@ export class DashboardAPI {
       }),
       this.getTokenMintingData(),
       this.joyAPI.getInflationPercentValue(),
-      this.fetchSubscanData<SubscanUniqueTokenData>(
-        "https://joystream.api.subscan.io/api/scan/token/unique_id",
-        undefined,
-        "GET"
-      ),
+      this.joyAPI.totalStaked(),
       this.joyAPI.APR(),
     ]);
 
@@ -463,12 +432,9 @@ export class DashboardAPI {
       }, {} as FDVs);
     }
 
-    if (uniqueTokenData) {
-      const { bonded_locked_balance } = uniqueTokenData.detail.JOY;
-
+    if (totalStaked) {
       joyAnnualInflation = inflation;
-      percentSupplyStakedForValidation =
-        (hapiToJoy(Number(bonded_locked_balance)) / totalSupply) * 100;
+      percentSupplyStakedForValidation = (hapiToJoy(totalStaked) / totalSupply) * 100;
     }
 
     return {
@@ -515,9 +481,9 @@ export class DashboardAPI {
       videosData,
       commentsAndReactionsData,
       nftBoughtEventsData,
-      blockchainMetadata,
+      averageBlockTime,
       extrinsicData,
-      dailyAccountHolderData,
+      accountsData,
       dailyActiveAccountData,
     ] = await Promise.all([
       this.joyAPI.qnQuery<ChannelsQueryData>(TRACTION_QN_QUERIES.CHANNELS()),
@@ -525,36 +491,10 @@ export class DashboardAPI {
       paginatedQNFetch<GenericQNTractionItem>(TRACTION_QN_QUERIES.VIDEOS),
       this.joyAPI.qnQuery<CommentsAndReactionsData>(TRACTION_QN_QUERIES.COMMENTS_AND_REACTIONS()),
       this.joyAPI.qnQuery<NFTBoughtEventsData>(TRACTION_QN_QUERIES.NFT_BOUGHT_EVENTS),
-      this.fetchSubscanData<SubscanBlockchainMetadata>(
-        "https://joystream.api.subscan.io/api/scan/metadata"
-      ),
-      this.fetchSubscanData<GeneralSubscanDailyListData>(
-        "https://joystream.api.subscan.io/api/scan/daily",
-        {
-          category: "extrinsic",
-          start: "2022-12-01",
-          format: "day",
-          end: getYearMonthDayString(new Date()),
-        }
-      ),
-      this.fetchSubscanData<GeneralSubscanDailyListData>(
-        "https://joystream.api.subscan.io/api/scan/daily",
-        {
-          category: "AccountHolderTotal",
-          start: getYearMonthDayString(getDateWeeksAgo(1)),
-          format: "day",
-          end: getYearMonthDayString(new Date()),
-        }
-      ),
-      this.fetchSubscanData<GeneralSubscanDailyListData>(
-        "https://joystream.api.subscan.io/api/scan/daily",
-        {
-          category: "ActiveAccount",
-          start: getYearMonthDayString(getDateWeeksAgo(1)),
-          format: "day",
-          end: getYearMonthDayString(new Date()),
-        }
-      ),
+      this.joyAPI.avgBlockTime(),
+      this.joyAPI.extrinsicsStats(),
+      this.joyAPI.accountsStats(),
+      this.joyAPI.dailyActiveAccountsStats()
     ]);
 
     if (channelsData) {
@@ -625,10 +565,9 @@ export class DashboardAPI {
       weeklyVolumeOfSoldNFTs = separateQNDataByWeekAndAmount(nftBoughtEvents);
     }
 
-    // ============
-    // SUBSCAN DATA
-    // ============
-    let averageBlockTime = null;
+    // ==================
+    // SQUID ARCHIVE DATA
+    // ==================
     let totalNumberOfTransactions = null;
     let totalNumberOfTransactionsWeeklyChange = null;
     let totalNumberOfAccountHolders = null;
@@ -636,47 +575,24 @@ export class DashboardAPI {
     let numberOfDailyActiveAccounts = null;
     let numberOfDailyActiveAccountsWeeklyChange = null;
 
-    if (blockchainMetadata) {
-      averageBlockTime = blockchainMetadata.avgBlockTime;
-    }
-
     if (extrinsicData) {
-      const totalNumberOfTransactionsAWeekAgo = extrinsicData.list
-        .slice(0, extrinsicData.list.length - 7)
-        .reduce((acc: number, curr) => acc + curr.total, 0);
-
-      totalNumberOfTransactions = extrinsicData.list.reduce(
-        (acc: number, curr) => acc + curr.total,
-        0
-      );
+      totalNumberOfTransactions = extrinsicData.now;
       totalNumberOfTransactionsWeeklyChange =
-        ((totalNumberOfTransactions - totalNumberOfTransactionsAWeekAgo) /
-          totalNumberOfTransactionsAWeekAgo) *
-        100;
+        ((extrinsicData.now - extrinsicData.weekAgo) / extrinsicData.weekAgo) * 100;
     }
 
-    if (dailyAccountHolderData) {
-      const numberOfAccountHoldersAWeekAgo = dailyAccountHolderData.list[0].total;
-
-      totalNumberOfAccountHolders =
-        dailyAccountHolderData.list[dailyAccountHolderData.list.length - 1].total;
+    if (accountsData) {
+      totalNumberOfAccountHolders = accountsData.now;
       totalNumberOfAccountHoldersWeeklyChange =
-        ((totalNumberOfAccountHolders - numberOfAccountHoldersAWeekAgo) /
-          numberOfAccountHoldersAWeekAgo) *
-        100;
+        ((accountsData.now - accountsData.weekAgo) / accountsData.weekAgo) * 100;
     }
 
     if (dailyActiveAccountData) {
-      const numberOfActiveAccountsAWeekAgo = dailyActiveAccountData.list[0].total;
-
-      // This takes the number of active accounts from yesterday, as the data for today is not yet fully complete.
-      // During the early parts of the day, the number of active accounts "Today" will be super low and not representative.
-      numberOfDailyActiveAccounts =
-        dailyActiveAccountData.list[dailyActiveAccountData.list.length - 2].total;
+      // `now` is actually the number of active accounts from yesterday till today,
+      // as the data for today would not yet be complete.
+      numberOfDailyActiveAccounts = dailyActiveAccountData.now;
       numberOfDailyActiveAccountsWeeklyChange =
-        ((numberOfDailyActiveAccounts - numberOfActiveAccountsAWeekAgo) /
-          numberOfActiveAccountsAWeekAgo) *
-        100;
+        ((dailyActiveAccountData.now - dailyActiveAccountData.weekAgo) / dailyActiveAccountData.weekAgo) * 100;
     }
 
     return {

@@ -1,28 +1,28 @@
 import axios from "axios";
 
-if (process.env.CMC_API_KEY === undefined) {
-  throw new Error("Missing CMC_API_KEY in .env!");
+if (process.env.COINGECKO_API_KEY === undefined) {
+  throw new Error("Missing COINGECKO_API_KEY in .env!");
 }
 
-const API_KEY = process.env.CMC_API_KEY;
-const JOYSTREAM_CMC_TOKEN_ID = "6827";
+const { COINGECKO_API_KEY } = process.env;
 
 const getPrice = async () => {
   try {
-    const {
-      data: { data },
-    } = await axios.get(
-      "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?slug=joystream&convert=USD",
+    const { data } = await axios.get<{ joystream?: { usd?: number  } }>(
+      " https://api.coingecko.com/api/v3/simple/price",
       {
-        // body: JSON.stringify(params),
+        params: {
+          ids: "joystream",
+          vs_currencies: "usd",
+        },
         headers: {
           Accepts: "application/json",
-          "X-CMC_PRO_API_KEY": API_KEY,
+          "x-cg-pro-api-key": COINGECKO_API_KEY,
         },
       }
     );
 
-    return { price: data[JOYSTREAM_CMC_TOKEN_ID].quote.USD.price };
+    return { price: data.joystream?.usd || 0 };
   } catch (e) {
     // In case there are problems with the API, we just return 0.
 

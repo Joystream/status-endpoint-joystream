@@ -6,16 +6,6 @@ export type GithubContributor = {
   avatar: string | undefined;
 };
 
-export type SubscanBlockchainMetadata = {
-  avgBlockTime: string;
-};
-
-export type GeneralSubscanDailyListData = {
-  list: Array<{
-    total: number;
-  }>;
-};
-
 export type GenericQNTractionConnection = {
   totalCount: number;
 };
@@ -163,22 +153,6 @@ export type DiscordUser = {
   };
 };
 
-export type SubscanPriceHistoryListData = {
-  list: Array<{
-    feed_at: number;
-    price: string;
-  }>;
-};
-
-export type SubscanUniqueTokenData = {
-  detail: {
-    JOY: {
-      inflation: string;
-      bonded_locked_balance: string;
-    };
-  };
-};
-
 export type TokenQNMintingData = {
   channelRewardClaimedEvents: Array<{
     amount: string;
@@ -242,3 +216,40 @@ export type CoinGeckoMarketsData = Array<{
 export type FDVs = {
   [key: string]: number;
 };
+
+export type ArchiveAccountsData = {
+  newAccountsWeekAgo: {
+    totalCount: number
+  }
+  killedAccountsWeekAgo: {
+    totalCount: number
+  }
+  newAccountsNow: {
+    totalCount: number
+  }
+  killedAccountsNow: {
+    totalCount: number
+  }
+}
+
+export type ArchiveDailyActiveAccountsData = {
+  dailyActiveAccountsWeekAgo: Array<{
+    args: {
+      who: string
+    }
+  }>
+  dailyActiveAccountsNow: Array<{
+    args: {
+      who: string
+    }
+  }>
+}
+
+export type ArchiveExtrinsicsData = {
+  extrinsicsWeekAgo: {
+    totalCount: number
+  }
+  extrinsicsNow: {
+    totalCount: number
+  }
+}

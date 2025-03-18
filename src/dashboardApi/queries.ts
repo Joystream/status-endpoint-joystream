@@ -1,4 +1,4 @@
-import { getDateMonthsAgo, getDateYearsAgo } from "../utils";
+import { getDateDaysAgo, getDateMonthsAgo, getDateWeeksAgo, getDateYearsAgo, getYearMonthDayString } from "../utils";
 
 export const TOKEN_MINTING_QN_QUERY = () => `{
   channelRewardClaimedEvents(
@@ -143,3 +143,87 @@ export const TEAM_QN_QUERIES = {
     }
   }`,
 };
+
+export const ACCOUNTS_QUERY = `{
+  newAccountsWeekAgo: eventsConnection(
+    where: {
+      name_eq: "System.NewAccount",
+      block: {
+        timestamp_lt: "${getDateWeeksAgo(1).toISOString()}"
+      },
+    },
+    orderBy: id_ASC
+  ) {
+    totalCount
+  }
+  killedAccountsWeekAgo: eventsConnection(
+    where: {
+      name_eq: "System.KilledAccount",
+      block: {
+        timestamp_lt: "${getDateWeeksAgo(1).toISOString()}"
+      }
+    },
+    orderBy: id_ASC
+  ) {
+    totalCount
+  }
+  newAccountsNow: eventsConnection(
+    where: { name_eq: "System.NewAccount" },
+    orderBy: id_ASC
+  ) {
+    totalCount
+  }
+  killedAccountsNow: eventsConnection(
+    where: { name_eq: "System.KilledAccount" },
+    orderBy: id_ASC
+  ) {
+    totalCount
+  }
+}`
+
+export const DAILY_ACTIVE_ACCOUNTS_QUERY = `{
+  dailyActiveAccountsWeekAgo: events(
+    where: {
+      name_eq: "Balances.Withdraw",
+      block: {
+        timestamp_gt: "${new Date(getYearMonthDayString(getDateDaysAgo(8))).toISOString()}",
+        timestamp_lt: "${new Date(getYearMonthDayString(getDateDaysAgo(7))).toISOString()}"
+      }
+  	},
+  	limit: 10000
+  ) {
+    args
+  }
+  dailyActiveAccountsNow: events(
+    where: {
+      name_eq: "Balances.Withdraw",
+      block: {
+        timestamp_gt: "${new Date(getYearMonthDayString(getDateDaysAgo(1))).toISOString()}",
+        timestamp_lt: "${new Date(getYearMonthDayString(new Date())).toISOString()}"
+      }
+  	},
+  	limit: 10000
+  ) {
+    args
+  }
+}`
+
+export const EXTRINSICS_QUERY = `{
+  extrinsicsWeekAgo: extrinsicsConnection(
+    where: {
+      block: {
+        timestamp_lt: "${getDateWeeksAgo(1).toISOString()}"
+      },
+      signature_isNull: false
+    },
+    orderBy: id_ASC
+  ) {
+    totalCount
+  }
+  extrinsicsNow: extrinsicsConnection(
+    where: { signature_isNull: false },
+    orderBy: id_ASC
+  ) {
+    totalCount
+  }
+}`
