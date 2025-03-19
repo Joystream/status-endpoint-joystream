@@ -343,11 +343,11 @@ export class DashboardAPI {
         },
         headers: {
                   "Content-Type": "application/json",
-                  "x-cg-pro-api-key": COINGECKO_API_KEY,
+                  "x-cg-demo-api-key": COINGECKO_API_KEY,
         }
       }),
       fetchGenericAPIData<CoinGeckoMarketsData>({
-        url: `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=deso,theta-token,livepeer,cyberconnect&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
+        url: `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=deso,theta-token,livepeer,cyberconnect&x-cg-demo-api-key=${COINGECKO_API_KEY}`,
       }),
     ]);
 
@@ -371,17 +371,17 @@ export class DashboardAPI {
       fetchGenericAPIData<CoingGeckoMarketChartRange>({
         url: `https://api.coingecko.com/api/v3/coins/joystream/market_chart/range?vs_currency=usd&from=${getUnixTimestampFromDate(
           getDateYearsAgo(1)
-        )}&to=${getUnixTimestampFromDate(new Date())}&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
+        )}&to=${getUnixTimestampFromDate(new Date())}&x-cg-demo-api-key=${COINGECKO_API_KEY}`,
       }),
       fetchGenericAPIData<CoingGeckoMarketChartRange>({
         url: `https://api.coingecko.com/api/v3/coins/joystream/market_chart/range?vs_currency=usd&from=${getUnixTimestampFromDate(
           getDateDaysAgo(1)
-        )}&to=${getUnixTimestampFromDate(new Date())}&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
+        )}&to=${getUnixTimestampFromDate(new Date())}&x-cg-demo-api-key=${COINGECKO_API_KEY}`,
       }),
       this.joyAPI.calculateCirculatingSupply(),
       this.joyAPI.totalIssuanceInJOY(),
       await fetchGenericAPIData<CoingGeckoExchangeData>({
-        url: `https://api.coingecko.com/api/v3/coins/joystream/tickers?depth=true&x-cg-pro-api-key=${COINGECKO_API_KEY}`,
+        url: `https://api.coingecko.com/api/v3/coins/joystream/tickers?depth=true&x-cg-demo-api-key=${COINGECKO_API_KEY}`,
       }),
       this.getTokenMintingData(),
       this.joyAPI.getInflationPercentValue(),

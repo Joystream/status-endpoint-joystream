@@ -132,7 +132,7 @@ export const paginatedQNFetch = async <T>(
 
       offset += NUMBER_OF_ITEMS_TO_FETCH;
     } catch (e) {
-      console.log(e);
+      console.error(e);
       return resultItems;
     }
   }
@@ -178,7 +178,7 @@ export const fetchGenericAPIData = async <T>({
     });
     return data as T;
   } catch (e) {
-    console.log(e);
+    console.error(e);
     return null;
   }
 };

@@ -318,7 +318,7 @@ const getPriceData = async () => {
         },
         headers: {
           "Content-Type": "application/json",
-          "x-cg-pro-api-key": COINGECKO_API_KEY,
+          "x-cg-demo-api-key": COINGECKO_API_KEY,
         }
       }
     );
@@ -338,6 +338,7 @@ const getPriceData = async () => {
       lastWeekChange,
     };
   } catch (e) {
+    console.error(e)
     return null;
   }
 };
@@ -421,7 +422,9 @@ const getCarouselData = async () => {
         withCredentials: true,
       }
     );
-  } catch (e) {}
+  } catch (e) {
+    console.error(e);
+  }
 
   const channels = orionResponse?.data?.data?.channels ?? ([] as Array<OrionChannelGenericObject>);
   const channelFollows =

@@ -9,7 +9,7 @@ const { COINGECKO_API_KEY } = process.env;
 const getPrice = async () => {
   try {
     const { data } = await axios.get<{ joystream?: { usd?: number  } }>(
-      " https://api.coingecko.com/api/v3/simple/price",
+      "https://api.coingecko.com/api/v3/simple/price",
       {
         params: {
           ids: "joystream",
@@ -17,13 +17,14 @@ const getPrice = async () => {
         },
         headers: {
           Accepts: "application/json",
-          "x-cg-pro-api-key": COINGECKO_API_KEY,
+          "x-cg-demo-api-key": COINGECKO_API_KEY,
         },
       }
     );
 
     return { price: data.joystream?.usd || 0 };
   } catch (e) {
+    console.error(e);
     // In case there are problems with the API, we just return 0.
 
     return { price: 0 };
