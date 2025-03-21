@@ -53,6 +53,7 @@ const scheduleCronJob = async () => {
 
       fs.writeFileSync(LANDING_PAGE_DATA_PATH, JSON.stringify(landingPageData, null, 2));
     } catch (e) {
+      console.error(e);
       /* If the data is invalid, we don't want to write anything to the file. */
     }
   };
@@ -71,6 +72,7 @@ const scheduleCronJob = async () => {
 
       fs.writeFileSync(DASHBOARD_DATA_PATH, JSON.stringify(dashboardData, null, 2));
     } catch (e) {
+      console.error(e);
       /* If the data is invalid, we don't want to write anything to the file. */
     }
   };

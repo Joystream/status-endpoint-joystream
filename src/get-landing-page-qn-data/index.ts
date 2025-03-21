@@ -11,16 +11,17 @@ import {
   OrionChannelGenericObject,
   OrionChannelFollows,
 } from "./types";
-import { getDateWeeksAgo, getTomorrowsDate, getYearMonthDayString } from "../utils";
+import { getDateWeeksAgo, getTomorrowsDate, getUnixTimestampFromDate } from "../utils";
+import { CoingGeckoMarketChartRange } from "../dashboardApi/types";
 
 if (process.env.ORION_OPERATOR_SECRET === undefined) {
-  throw new Error("Missing QUERY_NODE in .env!");
+  throw new Error("Missing ORION_OPERATOR_SECRET in .env!");
 }
-if (process.env.SUBSCAN_API_KEY === undefined) {
-  throw new Error("Missing SUBSCAN_API_KEY in .env!");
+if (process.env.COINGECKO_API_KEY === undefined) {
+  throw new Error("Missing COINGECKO_API_KEY in .env!");
 }
 const ORION_OPERATOR_SECRET = process.env.ORION_OPERATOR_SECRET;
-const SUBSCAN_API_KEY = process.env.SUBSCAN_API_KEY;
+const COINGECKO_API_KEY = process.env.COINGECKO_API_KEY;
 
 const api = new JoyApi();
 
@@ -307,32 +308,37 @@ const parseAuxiliaryData = (response: {
 
 const getPriceData = async () => {
   try {
-    const priceResponse = await axios.post(
-      `https://joystream.api.subscan.io/api/scan/price/history`,
+    const priceResponse = await axios.get<CoingGeckoMarketChartRange>(
+      `https://api.coingecko.com/api/v3/coins/joystream/market_chart/range`,
       {
-        currency: "joy",
-        end: getYearMonthDayString(getTomorrowsDate()),
-        format: "hour",
-        start: getYearMonthDayString(getDateWeeksAgo(1)),
-      },
-      {
+        params: {
+          vs_currency: "usd",
+          to: getUnixTimestampFromDate(getTomorrowsDate()),
+          from: getUnixTimestampFromDate(getDateWeeksAgo(1)),
+        },
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": SUBSCAN_API_KEY,
-        },
+          "x-cg-demo-api-key": COINGECKO_API_KEY,
+        }
       }
     );
-
-    const tokenPrices = priceResponse.data.data.list;
-    const lastWeekValue = Number(tokenPrices[0].price);
-    const currentValue = Number(tokenPrices[tokenPrices.length - 1].price);
-    const lastWeekChange = ((currentValue - lastWeekValue) / lastWeekValue) * 100;
+    // Conform to Subscan api response format for backwards compatibility
+    const tokenPrices = priceResponse.data.prices?.map(
+      ([timestamp, price]) => ({ feed_at: Math.floor(timestamp / 1000), price: price.toString() })
+    ) || [];
+    let lastWeekChange = 0;
+    if (tokenPrices.length) {
+      const lastWeekValue = Number(tokenPrices[0].price);
+      const currentValue = Number(tokenPrices[tokenPrices.length - 1].price);
+      lastWeekChange = ((currentValue - lastWeekValue) / lastWeekValue) * 100;
+    }
 
     return {
       tokenPrices,
       lastWeekChange,
     };
   } catch (e) {
+    console.error(e)
     return null;
   }
 };
@@ -416,7 +422,9 @@ const getCarouselData = async () => {
         withCredentials: true,
       }
     );
-  } catch (e) {}
+  } catch (e) {
+    console.error(e);
+  }
 
   const channels = orionResponse?.data?.data?.channels ?? ([] as Array<OrionChannelGenericObject>);
   const channelFollows =

@@ -1,8 +1,12 @@
 import axios from "axios";
 
 import { getDateWeeksAgo } from "../utils";
+import BN from "bn.js";
 
-export const hapiToJoy = (hapi: number) => {
+export const hapiToJoy = (hapi: number | BN) => {
+  if (BN.isBN(hapi)) {
+    return hapi.div(new BN(10_000_000_000)).toNumber();
+  }
   return hapi / 10_000_000_000;
 };
 
@@ -128,7 +132,7 @@ export const paginatedQNFetch = async <T>(
 
       offset += NUMBER_OF_ITEMS_TO_FETCH;
     } catch (e) {
-      console.log(e);
+      console.error(e);
       return resultItems;
     }
   }
@@ -161,17 +165,20 @@ export const getTotalPriceOfQNItemsInLastWeek = (data: { createdAt: string; pric
 export const fetchGenericAPIData = async <T>({
   url,
   headers,
+  params
 }: {
   url: string;
   headers?: { [key: string]: string };
+  params?: { [key: string]: unknown };
 }) => {
   try {
     const { data } = await axios.get(url, {
       headers,
+      params
     });
     return data as T;
   } catch (e) {
-    console.log(e);
+    console.error(e);
     return null;
   }
 };
