@@ -667,19 +667,19 @@ export class DashboardAPI {
       discordUsers,
     ] = await Promise.all([
       fetchGenericAPIData<TweetScoutScoreData>({
-        url: "https://api.tweetscout.io/api/score/joystreamdao",
+        url: "https://api.tweetscout.io/v2/score/joystreamdao",
         headers: {
           ApiKey: TWEETSCOUT_API_KEY,
         },
       }),
       fetchGenericAPIData<TweetScoutGeneralData>({
-        url: "https://api.tweetscout.io/api/info/joystreamdao",
+        url: "https://api.tweetscout.io/v2/info/joystreamdao",
         headers: {
           ApiKey: TWEETSCOUT_API_KEY,
         },
       }),
       fetchGenericAPIData<TweetScoutAPITopFollowers>({
-        url: "https://api.tweetscout.io/api/top-followers/joystreamdao",
+        url: "https://api.tweetscout.io/v2/top-followers/joystreamdao?from=db",
         headers: {
           ApiKey: TWEETSCOUT_API_KEY,
         },
