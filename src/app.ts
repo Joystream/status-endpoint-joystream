@@ -67,13 +67,39 @@ const scheduleCronJob = async () => {
   };
 
   const fetchAndWriteDashboardData = async () => {
+    let currentData: Record<string, unknown> = {}
     try {
-      const dashboardData = dashboardDataSchema.parse(await dashboardAPI.getFullData());
-
-      fs.writeFileSync(DASHBOARD_DATA_PATH, JSON.stringify(dashboardData, null, 2));
+      currentData = JSON.parse(fs.readFileSync(DASHBOARD_DATA_PATH).toString())
     } catch (e) {
-      console.error(e);
-      /* If the data is invalid, we don't want to write anything to the file. */
+      console.error(`Could not parse current dashboard data from ${DASHBOARD_DATA_PATH}`)
+    }
+
+    const newData = await dashboardAPI.getFullData();
+    let updatedData = {
+      ...currentData,
+      ...Object.fromEntries(
+        Object.entries(newData)
+          .filter(([key, value]) => {
+            try {
+              dashboardDataSchema.pick({ [key]: true }).parse({ [key]: value })
+            } catch (e) {
+              console.error(`Failed to validate .${key} in dashboardData! Will skip updating this part...`)
+              console.error(e)
+              return false
+            }
+            return true
+          })
+          .map(([key, value]) => [key, { ...value, lastUpdated: Date.now() }])
+      )
+    }
+
+    // Final validation before update
+    try {
+      updatedData = dashboardDataSchema.parse(updatedData)
+      fs.writeFileSync(DASHBOARD_DATA_PATH, JSON.stringify(updatedData, null, 2));
+    } catch(e) {
+      console.error(`Updated dashboard data validation failed! Will skip this update...`)
+      console.error(e)
     }
   };
 

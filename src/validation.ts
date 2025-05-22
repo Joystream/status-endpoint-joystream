@@ -57,6 +57,7 @@ const dashboardDataSchema = z.object({
     joyAnnualInflation: z.number(),
     percentSupplyStakedForValidation: z.number(),
     apr: z.number(),
+    lastUpdated: z.number().optional()
   }),
   traction: z.object({
     totalNumberOfChannels: z.number(),
@@ -78,6 +79,7 @@ const dashboardDataSchema = z.object({
     totalNumberOfAccountHoldersWeeklyChange: z.number(),
     numberOfDailyActiveAccounts: z.number(),
     numberOfDailyActiveAccountsWeeklyChange: z.number(),
+    lastUpdated: z.number().optional()
   }),
   engineering: z.object({
     numberOfRepositories: z.number(),
@@ -90,6 +92,7 @@ const dashboardDataSchema = z.object({
     totalNumberOfContributors: z.number(),
     contributors: z.any().array().nonempty(),
     commits: z.record(z.string(), z.record(z.string(), z.number())),
+    lastUpdated: z.number().optional()
   }),
   community: z.object({
     twitterFollowerCount: z.number(),
@@ -100,6 +103,7 @@ const dashboardDataSchema = z.object({
     tweetscoutLevel: z.number(),
     featuredFollowers: z.any().array().nonempty(),
     discordEvents: z.any().array().nonempty(),
+    lastUpdated: z.number().optional()
   }),
   team: z.object({
     council: z.object({
@@ -118,6 +122,7 @@ const dashboardDataSchema = z.object({
         budget: z.number(),
       })
     ),
+    lastUpdated: z.number().optional()
   }),
 });
 
