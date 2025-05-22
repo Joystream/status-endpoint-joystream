@@ -67,7 +67,7 @@ const scheduleCronJob = async () => {
   };
 
   const fetchAndWriteDashboardData = async () => {
-    let currentData = {}
+    let currentData: Record<string, unknown> = {}
     try {
       currentData = JSON.parse(fs.readFileSync(DASHBOARD_DATA_PATH).toString())
     } catch (e) {
@@ -75,7 +75,7 @@ const scheduleCronJob = async () => {
     }
 
     const newData = await dashboardAPI.getFullData();
-    const updatedData = {
+    let updatedData = {
       ...currentData,
       ...Object.fromEntries(
         Object.entries(newData)
@@ -93,7 +93,14 @@ const scheduleCronJob = async () => {
       )
     }
 
-    fs.writeFileSync(DASHBOARD_DATA_PATH, JSON.stringify(updatedData, null, 2));
+    // Final validation before update
+    try {
+      updatedData = dashboardDataSchema.parse(updatedData)
+      fs.writeFileSync(DASHBOARD_DATA_PATH, JSON.stringify(updatedData, null, 2));
+    } catch(e) {
+      console.error(`Updated dashboard data validation failed! Will skip this update...`)
+      console.error(e)
+    }
   };
 
   // Fetch data initially such that we have something to serve. There will at most
